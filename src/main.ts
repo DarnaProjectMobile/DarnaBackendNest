@@ -8,6 +8,14 @@ import { ValidationPipe } from '@nestjs/common'; // ✅ Add this import
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // ✅ Enable CORS for Android app
+  app.enableCors({
+    origin: true, // Allow all origins (for development) - change to specific origin in production
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  });
+
   // ✅ Enable global validation
   app.useGlobalPipes(
     new ValidationPipe({
@@ -41,8 +49,8 @@ async function bootstrap() {
     },
   });
 
-  await app.listen(3000);
-  console.log('🚀 Server running on http://localhost:3000');
-  console.log('📘 Swagger docs available on http://localhost:3000/api');
+  await app.listen(3001);
+  console.log('🚀 Server running on http://localhost:3001');
+  console.log('📘 Swagger docs available on http://localhost:3001/api');
 }
 bootstrap();

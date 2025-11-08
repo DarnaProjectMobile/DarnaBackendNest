@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 import { Role } from 'src/auth/common/role.enum';
+import { IsDateStringFlexible } from './validators/date-string.validator';
 
 export enum Gender {
   Male = 'Male',
@@ -26,8 +27,14 @@ export class CreateUserDto {
   @IsEnum(Role)
   role: Role;
 
-  @ApiProperty()
-  @IsDateString()
+  @ApiProperty({ 
+    example: '1990-01-15',
+    description: 'Date de naissance au format ISO 8601 (YYYY-MM-DD). Exemple: 1990-01-15',
+    format: 'date',
+    type: String
+  })
+  @IsDateStringFlexible()
+  @IsNotEmpty({ message: 'dateDeNaissance is required' })
   dateDeNaissance: string;
 
   @ApiProperty()
