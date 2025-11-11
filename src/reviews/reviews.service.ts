@@ -1,26 +1,49 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
+import { Review } from './entities/review.entity';
 
 @Injectable()
 export class ReviewsService {
-  create(createReviewDto: CreateReviewDto) {
-    return 'This action adds a new review';
+  constructor(@InjectModel(Review.name) private readonly reviewModel: Model<Review>) {}
+
+  async create(createReviewDto: CreateReviewDto) {
+    try {
+      const review = new this.reviewModel({
+        rating: createReviewDto.rating,
+        comment: createReviewDto.comment,
+        user: createReviewDto.userId, // link existing user
+      });
+      return await review.save();
+    } catch (error) {
+      console.error('❌ Create review error:', error);
+      throw error;
+    }
   }
 
-  findAll() {
-    return `This action returns all reviews`;
+  async findAll() {
+    return this.reviewModel.find().populate('user', 'name email role');
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} review`;
+  async findOne(id: string) {
+    const review = await this.reviewModel.findById(id).populate('user', 'name email role');
+    if (!review) throw new NotFoundException(`Review with ID ${id} not found`);
+    return review;
   }
 
-  update(id: number, updateReviewDto: UpdateReviewDto) {
-    return `This action updates a #${id} review`;
+  async update(id: string, updateReviewDto: UpdateReviewDto) {
+    const updated = await this.reviewModel
+      .findByIdAndUpdate(id, updateReviewDto, { new: true })
+      .populate('user', 'name email role');
+    if (!updated) throw new NotFoundException(`Review with ID ${id} not found`);
+    return updated;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} review`;
+  async remove(id: string) {
+    const deleted = await this.reviewModel.findByIdAndDelete(id);
+    if (!deleted) throw new NotFoundException(`Review with ID ${id} not found`);
+    return { message: 'Review deleted successfully' };
   }
 }
