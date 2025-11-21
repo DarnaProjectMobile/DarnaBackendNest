@@ -69,7 +69,7 @@ export class UsersController {
     return this.usersService.updateImageById(user.userId, file.filename);
   }
 
-  @Post('send-verification')
+  @Post('000000000000000000000000000000')
   @UseGuards(JwtAuthGuard)
   sendVerification(@CurrentUser() user: any) {
     return this.usersService.sendVerificationCodeById(user.userId);
