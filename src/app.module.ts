@@ -9,9 +9,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { ReportsModule } from './reports/reports.module';
 import { PubliciteModule } from './publicite/publicite.module';
 import { VisiteModule } from './visite/visite.module';
-import { LogementModule } from './logement/logement.module';
-import { NotificationModule } from './notification/notification.module';
-import { EvaluationModule } from './evaluation/evaluation.module';
+
 
 @Module({
   imports: [
@@ -20,10 +18,9 @@ import { EvaluationModule } from './evaluation/evaluation.module';
       isGlobal: true, // makes env vars available everywhere
     }),
 
-    // 👇 Use MONGO_URI from .env or fallback
-    MongooseModule.forRoot(
-      process.env.MONGO_URI || 'mongodb://localhost:27017/DarnaDB',
-    ),
+MongooseModule.forRoot(
+  process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/DarnaDB',
+),
 
     UsersModule,
     AuthModule,
@@ -33,9 +30,8 @@ import { EvaluationModule } from './evaluation/evaluation.module';
     ReportsModule,
     PubliciteModule,
     VisiteModule,
-    LogementModule,
-    NotificationModule,
-    EvaluationModule,
+ 
+  
   ],
 })
 export class AppModule {}

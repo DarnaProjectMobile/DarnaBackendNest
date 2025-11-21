@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Visite, VisiteDocument } from './entities/visite.entity';
+import { Visite, VisiteDocument } from './schemas/visite.schema';
 import { CreateVisiteDto } from './dto/create-visite.dto';
 import { UpdateVisiteDto } from './dto/update-visite.dto';
 
@@ -11,9 +11,10 @@ export class VisiteService {
     @InjectModel(Visite.name) private visiteModel: Model<VisiteDocument>,
   ) {}
 
-  async create(createVisiteDto: CreateVisiteDto): Promise<Visite> {
+  async create(createVisiteDto: CreateVisiteDto, userId: string): Promise<Visite> {
     const visite = new this.visiteModel({
       ...createVisiteDto,
+      userId,
       dateVisite: new Date(createVisiteDto.dateVisite),
       status: 'pending',
     });

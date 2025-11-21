@@ -3,7 +3,8 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import * as express from 'express';
-import { ValidationPipe } from '@nestjs/common'; // ✅ Add this import
+import { ValidationPipe } from '@nestjs/common';
+import * as os from 'os'; // ✅ For network IP detection
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -49,8 +50,35 @@ async function bootstrap() {
     },
   });
 
-  await app.listen(3001);
-  console.log('🚀 Server running on http://localhost:3001');
-  console.log('📘 Swagger docs available on http://localhost:3001/api');
+  const port = process.env.PORT ? Number(process.env.PORT) : 3004;
+  
+  // Get local IP address for network access
+  const getLocalIP = (): string => {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      const networkInterface = interfaces[name];
+      if (networkInterface) {
+        for (const iface of networkInterface) {
+          // Skip internal (loopback) addresses and non-IPv4
+          if (iface.family === 'IPv4' && !iface.internal) {
+            return iface.address;
+          }
+        }
+      }
+    }
+    return 'localhost';
+  };
+
+  const localIP = getLocalIP();
+  
+  // Listen on all network interfaces (0.0.0.0) to allow access from other devices
+  await app.listen(port, '0.0.0.0');
+  
+  console.log(`🚀 Server running on:`);
+  console.log(`   📍 Local:   http://localhost:${port}`);
+  console.log(`   🌐 Network: http://${localIP}:${port}`);
+  console.log(`📘 Swagger docs available on:`);
+  console.log(`   📍 Local:   http://localhost:${port}/api`);
+  console.log(`   🌐 Network: http://${localIP}:${port}/api`);
 }
 bootstrap();

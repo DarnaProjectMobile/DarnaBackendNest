@@ -14,10 +14,7 @@ export class CreateVisiteDto {
   @IsNotEmpty()
   logementId: string;
 
-  @ApiProperty({ description: 'ID de l\'utilisateur qui demande la visite' })
-  @IsString()
-  @IsNotEmpty()
-  userId: string;
+  // userId n'est plus requis - il sera automatiquement pris de l'utilisateur connecté
 
   @ApiProperty({ description: 'Date et heure de la visite (ISO string)' })
   @IsDateString()

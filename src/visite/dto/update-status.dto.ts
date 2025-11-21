@@ -6,7 +6,7 @@ export enum VisiteStatus {
   CONFIRMED = 'confirmed',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
-}
+}         
 
 export class UpdateStatusDto {
   @ApiProperty({ 
@@ -14,6 +14,7 @@ export class UpdateStatusDto {
     enum: VisiteStatus,
     example: VisiteStatus.CONFIRMED
   })
+  
   @IsEnum(VisiteStatus)
   @IsNotEmpty()
   status: VisiteStatus;

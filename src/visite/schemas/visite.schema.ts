@@ -14,7 +14,7 @@ export class Visite {
   @Prop({ required: true })
   dateVisite: Date; // Date et heure de la visite
 
-  @Prop({ required: false, default: 'pending' })
+  @Prop({ required: false, enum: ['pending', 'confirmed', 'completed', 'cancelled'], default: 'pending' })
   status: string; // Statut: 'pending', 'confirmed', 'completed', 'cancelled'
 
   @Prop({ required: false })
@@ -25,3 +25,4 @@ export class Visite {
 }
 
 export const VisiteSchema = SchemaFactory.createForClass(Visite);
+
