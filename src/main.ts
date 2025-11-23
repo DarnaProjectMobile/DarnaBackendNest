@@ -3,7 +3,7 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import * as express from 'express';
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import * as os from 'os'; // ✅ For network IP detection
 
 async function bootstrap() {
@@ -23,6 +23,20 @@ async function bootstrap() {
       whitelist: true, // remove properties not in DTO
       forbidNonWhitelisted: false, // throw error if extra fields sent
       transform: true, // automatically transform payloads to DTO instances
+      transformOptions: {
+        enableImplicitConversion: true, // automatically convert types
+      },
+      stopAtFirstError: false, // show all validation errors
+      exceptionFactory: (errors) => {
+        const messages = errors.map((error) => {
+          return Object.values(error.constraints || {}).join(', ');
+        });
+        return new BadRequestException({
+          statusCode: 400,
+          message: messages.length > 0 ? messages : 'Validation failed',
+          error: 'Bad Request',
+        });
+      },
     }),
   );
 
@@ -50,7 +64,7 @@ async function bootstrap() {
     },
   });
 
-  const port = process.env.PORT ? Number(process.env.PORT) : 3004;
+  const port = process.env.PORT ? Number(process.env.PORT) : 3007;
   
   // Get local IP address for network access
   const getLocalIP = (): string => {

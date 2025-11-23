@@ -22,6 +22,16 @@ export class Visite {
 
   @Prop({ required: false })
   contactPhone?: string; // Téléphone de contact
+
+  @Prop({ type: [String], default: [] })
+  documents?: string[]; // Documents uploadés (factures, etc.)
+
+  @Prop({ default: false })
+  validated?: boolean; // Visite validée par le client
+
+  @Prop({ required: false })
+  reviewId?: string; // Référence à la review/évaluation
+
 }
 
 export const VisiteSchema = SchemaFactory.createForClass(Visite);

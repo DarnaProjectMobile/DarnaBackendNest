@@ -17,8 +17,11 @@ export class UsersService {
 
   // Create user
   async createUser(dto: CreateUserDto, image?: string): Promise<User> {
+    // Normaliser l'email (lowercase et trim)
+    const normalizedEmail = dto.email?.toLowerCase().trim();
+    
     const existingUser = await this.userModel.findOne({
-      $or: [{ email: dto.email }],
+      $or: [{ email: normalizedEmail }],
     });
     if (existingUser) {
       throw new BadRequestException('Email already in use');
@@ -28,6 +31,7 @@ export class UsersService {
 
     const createdUser = new this.userModel({
       ...dto,
+      email: normalizedEmail, // Utiliser l'email normalisé
       password: hashed,
       image,
     });
@@ -40,7 +44,9 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email });
+    // Normaliser l'email pour la recherche (lowercase et trim)
+    const normalizedEmail = email?.toLowerCase().trim();
+    return this.userModel.findOne({ email: normalizedEmail });
   }
 
   async findByUsername(username: string): Promise<User | null> {
@@ -111,7 +117,8 @@ export class UsersService {
   }
 
   async sendPasswordResetCode(email: string) {
-    const user = await this.userModel.findOne({ email });
+    const normalizedEmail = email?.toLowerCase().trim();
+    const user = await this.userModel.findOne({ email: normalizedEmail });
     if (!user) throw new BadRequestException('User not found');
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();

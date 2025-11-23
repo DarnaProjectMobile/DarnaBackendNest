@@ -19,15 +19,45 @@ export class AuthService {
 
   // 🔑 Login user
   async login(email: string, password: string) {
-    const user = await this.usersService.findByEmail(email);
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw new UnauthorizedException('Invalid credentials');
+    // Normaliser l'email (lowercase et trim)
+    const normalizedEmail = email?.toLowerCase().trim();
+    
+    if (!normalizedEmail || !password) {
+      throw new UnauthorizedException('Email et mot de passe sont requis');
     }
+
+    const user = await this.usersService.findByEmail(normalizedEmail);
+    
+    if (!user) {
+      throw new UnauthorizedException('Email ou mot de passe incorrect');
+    }
+
+    // Vérifier le mot de passe
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Email ou mot de passe incorrect');
+    }
+
+    // Exclure le mot de passe de la réponse
+    const userResponse = {
+      _id: user._id.toString(),
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      image: user.image,
+      dateDeNaissance: user.dateDeNaissance,
+      numTel: user.numTel,
+      gender: user.gender,
+      credits: user.credits,
+      ratingAvg: user.ratingAvg,
+      badges: user.badges,
+      isVerified: user.isVerified,
+    };
 
     const payload = { userId: user._id.toString(), role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
-      user,
+      user: userResponse,
     };
   }
 }

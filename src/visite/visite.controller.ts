@@ -1,14 +1,18 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Put, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Put, UseGuards, ForbiddenException, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { VisiteService } from './visite.service';
 import { CreateVisiteDto } from './dto/create-visite.dto';
 import { UpdateVisiteDto } from './dto/update-visite.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { UploadDocumentsDto } from './dto/upload-documents.dto';
+import { CreateReviewDto } from '../reviews/dto/create-review.dto';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorators';
 import { CurrentUser } from '../auth/common/current-user.decorator';
 import { Role } from '../auth/common/role.enum';
+import { diskStorage } from 'multer';
 
 @ApiTags('Visite')
 @Controller('visite')
@@ -94,20 +98,60 @@ export class VisiteController {
     return this.visiteService.updateStatus(id, 'cancelled');
   }
 
+  // 👤 CÔTÉ CLIENT : Annuler sa propre visite
+  @Post(':id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Client)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Annuler une visite (Client uniquement - seulement ses propres visites) - Change le statut à "cancelled"' })
+  @ApiParam({ name: 'id', description: 'ID de la visite' })
+  @ApiResponse({ status: 200, description: 'Visite annulée avec succès' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - Client uniquement' })
+  @ApiResponse({ status: 404, description: 'Visite non trouvée' })
+  async cancelVisite(@Param('id') id: string, @CurrentUser() user: any) {
+    const visite = await this.visiteService.findOne(id);
+    // Vérifier que l'utilisateur est le propriétaire de la visite
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (visite.userId !== user.userId) {
+      throw new ForbiddenException('Vous ne pouvez annuler que vos propres visites');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.visiteService.updateStatus(id, 'cancelled');
+  }
+
   // 🏠 CÔTÉ COLOCATAIRE : Mettre à jour le statut d'une visite (méthode générique)
+  // 👤 CÔTÉ CLIENT : Mettre à jour le statut de sa propre visite (pour annuler uniquement)
   @Put(':id/status')
   @UseGuards(RolesGuard)
-  @Roles(Role.Collocator)
+  @Roles(Role.Collocator, Role.Client)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Mettre à jour le statut d\'une visite (Colocataire uniquement)' })
+  @ApiOperation({ summary: 'Mettre à jour le statut d\'une visite (Colocataire: tous statuts, Client: seulement "cancelled")' })
   @ApiParam({ name: 'id', description: 'ID de la visite' })
   @ApiBody({ type: UpdateStatusDto })
   @ApiResponse({ status: 200, description: 'Statut mis à jour' })
   @ApiResponse({ status: 400, description: 'Statut invalide' })
   @ApiResponse({ status: 401, description: 'Non autorisé' })
-  @ApiResponse({ status: 403, description: 'Accès refusé - Colocataire uniquement' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
   @ApiResponse({ status: 404, description: 'Visite non trouvée' })
-  updateStatus(@Param('id') id: string, @Body() body: UpdateStatusDto) {
+  async updateStatus(@Param('id') id: string, @Body() body: UpdateStatusDto, @CurrentUser() user: any) {
+    const visite = await this.visiteService.findOne(id);
+    
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (user.role === Role.Client) {
+      // Les clients ne peuvent que annuler leurs propres visites
+      if (body.status !== 'cancelled') {
+        throw new ForbiddenException('Les clients ne peuvent que annuler leurs visites (statut: cancelled)');
+      }
+      // Vérifier que l'utilisateur est le propriétaire de la visite
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      if (visite.userId !== user.userId) {
+        throw new ForbiddenException('Vous ne pouvez modifier que vos propres visites');
+      }
+    }
+    // Les colocataires peuvent changer le statut librement
+    
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     return this.visiteService.updateStatus(id, body.status);
   }
 
@@ -170,5 +214,130 @@ export class VisiteController {
       throw new ForbiddenException('Vous ne pouvez supprimer que vos propres visites');
     }
     return this.visiteService.remove(id);
+  }
+
+  // 👤 CÔTÉ CLIENT : Valider une visite (après avoir effectué la visite)
+  @Post(':id/validate')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Client)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Valider une visite (Client uniquement) - Marque la visite comme validée et complétée' })
+  @ApiParam({ name: 'id', description: 'ID de la visite' })
+  @ApiResponse({ status: 200, description: 'Visite validée avec succès' })
+  @ApiResponse({ status: 400, description: 'Visite non confirmée ou déjà validée' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - Client uniquement' })
+  @ApiResponse({ status: 404, description: 'Visite non trouvée' })
+  async validateVisite(@Param('id') id: string, @CurrentUser() user: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.visiteService.validateVisite(id, user.userId);
+  }
+
+  // 👤 CÔTÉ CLIENT : Uploader des documents pour une visite (après validation)
+  @Post(':id/upload-documents')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Client)
+  @ApiBearerAuth('access-token')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [{ name: 'documents', maxCount: 10 }],
+      {
+        storage: diskStorage({
+          destination: './uploads/visites',
+          filename: (req, file, cb) =>
+            cb(null, Date.now() + '-' + file.originalname),
+        }),
+      },
+    ),
+  )
+  @ApiOperation({ summary: 'Uploader des documents pour une visite validée (Client uniquement)' })
+  @ApiParam({ name: 'id', description: 'ID de la visite' })
+  @ApiResponse({ status: 200, description: 'Documents uploadés avec succès' })
+  @ApiResponse({ status: 400, description: 'Visite non validée' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - Client uniquement' })
+  @ApiResponse({ status: 404, description: 'Visite non trouvée' })
+  async uploadDocuments(
+    @Param('id') id: string,
+    @UploadedFiles() files: { documents?: Express.Multer.File[] },
+    @CurrentUser() user: any,
+  ) {
+    const documentNames = files.documents?.map(file => file.filename) || [];
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.visiteService.addDocuments(id, documentNames, user.userId);
+  }
+
+  // 👤 CÔTÉ CLIENT : Uploader des documents après visite (page de confirmation)
+  @Post(':id/upload-confirmation-documents')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Client)
+  @ApiBearerAuth('access-token')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [{ name: 'documents', maxCount: 10 }, { name: 'screenshots', maxCount: 10 }],
+      {
+        storage: diskStorage({
+          destination: './uploads/visites/confirmation',
+          filename: (req, file, cb) =>
+            cb(null, Date.now() + '-' + file.originalname),
+        }),
+      },
+    ),
+  )
+  @ApiOperation({ summary: 'Uploader des documents/screenshots après visite (Client uniquement - Page de confirmation)' })
+  @ApiParam({ name: 'id', description: 'ID de la visite' })
+  @ApiResponse({ status: 200, description: 'Documents uploadés avec succès' })
+  @ApiResponse({ status: 400, description: 'Visite non validée' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - Client uniquement' })
+  @ApiResponse({ status: 404, description: 'Visite non trouvée' })
+  async uploadConfirmationDocuments(
+    @Param('id') id: string,
+    @UploadedFiles() files: { documents?: Express.Multer.File[], screenshots?: Express.Multer.File[] },
+    @CurrentUser() user: any,
+  ) {
+    const allFiles = [
+      ...(files.documents?.map(file => file.filename) || []),
+      ...(files.screenshots?.map(file => file.filename) || []),
+    ];
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.visiteService.addDocuments(id, allFiles, user.userId);
+  }
+
+  // 👤 CÔTÉ CLIENT : Créer une évaluation/review pour une visite
+  @Post(':id/review')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Client)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Créer une évaluation pour une visite (Client uniquement)' })
+  @ApiParam({ name: 'id', description: 'ID de la visite' })
+  @ApiBody({ type: CreateReviewDto })
+  @ApiResponse({ status: 201, description: 'Évaluation créée avec succès' })
+  @ApiResponse({ status: 400, description: 'Visite non validée ou déjà évaluée' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - Client uniquement' })
+  @ApiResponse({ status: 404, description: 'Visite non trouvée' })
+  async createReview(
+    @Param('id') id: string,
+    @Body() createReviewDto: CreateReviewDto,
+    @CurrentUser() user: any,
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.visiteService.createReview(id, createReviewDto, user.userId);
+  }
+
+
+  // 👤 CÔTÉ CLIENT : Récupérer les évaluations d'une visite
+  @Get(':id/reviews')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Récupérer les évaluations d\'une visite' })
+  @ApiParam({ name: 'id', description: 'ID de la visite' })
+  @ApiResponse({ status: 200, description: 'Liste des évaluations' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 404, description: 'Visite non trouvée' })
+  async getVisiteReviews(@Param('id') id: string) {
+    return this.visiteService.getVisiteReviews(id);
   }
 }

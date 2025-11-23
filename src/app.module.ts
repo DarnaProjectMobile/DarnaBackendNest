@@ -9,6 +9,8 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { ReportsModule } from './reports/reports.module';
 import { PubliciteModule } from './publicite/publicite.module';
 import { VisiteModule } from './visite/visite.module';
+import { LogementModule } from './logement/logement.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 
 @Module({
@@ -30,6 +32,8 @@ MongooseModule.forRoot(
     ReportsModule,
     PubliciteModule,
     VisiteModule,
+    LogementModule,
+    NotificationsModule,
  
   
   ],

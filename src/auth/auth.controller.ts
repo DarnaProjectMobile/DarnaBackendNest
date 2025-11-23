@@ -63,14 +63,20 @@ export class AuthController {
             _id: '507f1f77bcf86cd799439011',
             username: 'testuser',
             email: 'test@example.com',
-            role: 'Client'
+            role: 'client'
           }
         }
       }
     }
   })
+  @ApiResponse({ status: 400, description: 'Données de connexion invalides' })
   @ApiResponse({ status: 401, description: 'Email ou mot de passe incorrect' })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto.email, dto.password);
+  async login(@Body() dto: LoginDto) {
+    try {
+      return await this.authService.login(dto.email, dto.password);
+    } catch (error) {
+      // Re-throw pour que NestJS gère l'erreur correctement
+      throw error;
+    }
   }
 }
