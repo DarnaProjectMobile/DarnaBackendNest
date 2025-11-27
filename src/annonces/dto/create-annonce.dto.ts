@@ -4,7 +4,6 @@ import {
   IsNotEmpty,
   IsNumber,
   IsString,
-  IsUrl,
   IsDateString,
   IsArray,
   ArrayMinSize,
@@ -28,7 +27,6 @@ export class CreateAnnonceDto {
   })
   @IsArray()
   @ArrayMinSize(1)
-  @IsUrl({}, { each: true })
   images: string[];
 
   @ApiProperty({

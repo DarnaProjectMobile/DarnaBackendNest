@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import { AnnoncesService } from './annonces.service';
 import { CreateAnnonceDto } from './dto/create-annonce.dto';
@@ -56,7 +57,7 @@ export class AnnoncesController {
     return this.annoncesService.remove(id, user);
   }
 
-  // ⭐ NEW BOOKING ROUTE
+  // ⭐ Book attending list
   @UseGuards(JwtAuthGuard)
   @Post(':id/book')
   bookAnnonce(
@@ -66,5 +67,16 @@ export class AnnoncesController {
   ) {
     const user = req.user as UserDocument;
     return this.annoncesService.bookAnnonce(id, dto, user);
+  }
+
+  // ⭐ Accept/reject booking
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/booking/:bookingId/respond')
+  acceptBooking(
+    @Param('id') id: string,
+    @Param('bookingId') bookingId: string,
+    @Query('accept') accept: string,
+  ) {
+    return this.annoncesService.acceptBooking(id, bookingId, accept === 'true');
   }
 }

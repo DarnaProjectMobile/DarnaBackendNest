@@ -51,6 +51,7 @@ export class AnnoncesService {
       .findById(id)
       .populate('user', 'username email')
       .populate('bookings.user', 'username email')
+      .populate('attendingListBookings.user', 'username email')
       .exec();
 
     if (!annonce) throw new NotFoundException(`Annonce #${id} not found`);
@@ -87,36 +88,56 @@ export class AnnoncesService {
     return { message: 'Annonce deleted successfully' };
   }
 
-  // ⭐ NEW BOOKING METHOD
+  // ⭐ Add booking to attending list
   async bookAnnonce(id: string, dto: BookAnnonceDto, userPayload: any) {
     const annonce = await this.annonceModel.findById(id);
     if (!annonce) throw new NotFoundException(`Annonce #${id} not found`);
 
     const bookingDate = new Date(dto.bookingStartDate);
 
-    // check date validity
-    if (
-      bookingDate < new Date(annonce.startDate) ||
-      bookingDate >= new Date(annonce.endDate)
-    ) {
+    if (bookingDate < new Date(annonce.startDate) || bookingDate >= new Date(annonce.endDate)) {
       throw new BadRequestException(
         'bookingStartDate must be >= annonce.startDate and < annonce.endDate',
       );
     }
 
-    // check availability
-    if (annonce.nbrCollocateurActuel >= annonce.nbrCollocateurMax) {
-      throw new BadRequestException('Annonce is fully booked');
-    }
-
-    // save booking
-    annonce.bookings.push({
+    annonce.attendingListBookings.push({
+      _id: new Types.ObjectId(),
       user: new Types.ObjectId(userPayload.userId),
       bookingStartDate: bookingDate,
     });
 
-    // increment collocator count
-    annonce.nbrCollocateurActuel += 1;
+    return annonce.save();
+  }
+
+  // ⭐ Accept or reject booking
+  async acceptBooking(
+    annonceId: string,
+    bookingId: string,
+    accept: boolean,
+  ): Promise<Annonce> {
+    const annonce = await this.annonceModel.findById(annonceId);
+    if (!annonce) throw new NotFoundException(`Annonce #${annonceId} not found`);
+
+    const bookingIndex = annonce.attendingListBookings.findIndex(
+      b => b._id.toString() === bookingId,
+    );
+    if (bookingIndex === -1) throw new NotFoundException('Booking not found');
+
+    const booking = annonce.attendingListBookings[bookingIndex];
+
+    if (accept) {
+      // Add to confirmed bookings
+      annonce.bookings.push(booking);
+      annonce.nbrCollocateurActuel += 1;
+
+      if (annonce.nbrCollocateurActuel > annonce.nbrCollocateurMax) {
+        throw new BadRequestException('Annonce is fully booked');
+      }
+    }
+
+    // Remove from attending list in both accept/reject
+    annonce.attendingListBookings.splice(bookingIndex, 1);
 
     return annonce.save();
   }

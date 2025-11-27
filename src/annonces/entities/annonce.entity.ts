@@ -43,7 +43,7 @@ export class Annonce {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   user: Types.ObjectId;
 
-  // NEW FIELD: booking list
+  // ✅ Booking list
   @Prop({
     type: [
       {
@@ -52,8 +52,27 @@ export class Annonce {
       },
     ],
     default: [],
+    _id: true, // make subdocuments have _id
   })
   bookings: {
+    _id: Types.ObjectId;
+    user: Types.ObjectId;
+    bookingStartDate: Date;
+  }[];
+
+  // ✅ Attending list (pending bookings)
+  @Prop({
+    type: [
+      {
+        user: { type: Types.ObjectId, ref: 'User' },
+        bookingStartDate: Date,
+      },
+    ],
+    default: [],
+    _id: true,
+  })
+  attendingListBookings: {
+    _id: Types.ObjectId;
     user: Types.ObjectId;
     bookingStartDate: Date;
   }[];
