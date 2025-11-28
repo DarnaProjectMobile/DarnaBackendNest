@@ -11,6 +11,7 @@ import { UpdateAnnonceDto } from './dto/update-annonce.dto';
 import { Annonce, AnnonceDocument } from './entities/annonce.entity';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
 import { BookAnnonceDto } from './dto/book-annonce.dto';
+import { NotificationService } from 'src/notification/notification.service';
 
 @Injectable()
 export class AnnoncesService {
@@ -20,6 +21,8 @@ export class AnnoncesService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(createAnnonceDto: CreateAnnonceDto, userPayload: any): Promise<Annonce> {
@@ -107,7 +110,27 @@ export class AnnoncesService {
       bookingStartDate: bookingDate,
     });
 
-    return annonce.save();
+    const savedAnnonce = await annonce.save();
+
+    const [owner, bookingUser] = await Promise.all([
+      this.userModel.findById(annonce.user),
+      this.userModel.findById(userPayload.userId),
+    ]);
+
+    if (owner?.deviceTokens?.length) {
+      await this.notificationService.notifyBookingRequest(
+        owner.deviceTokens,
+        {
+          annonceId: savedAnnonce._id.toString(),
+          annonceTitle: savedAnnonce.title,
+          bookingDate: this.formatBookingDate(bookingDate),
+          bookingUserName: bookingUser?.username,
+          type: 'BOOKING_REQUEST',
+        },
+      );
+    }
+
+    return savedAnnonce;
   }
 
   // ⭐ Accept or reject booking
@@ -139,6 +162,31 @@ export class AnnoncesService {
     // Remove from attending list in both accept/reject
     annonce.attendingListBookings.splice(bookingIndex, 1);
 
-    return annonce.save();
+    const savedAnnonce = await annonce.save();
+
+    const bookingUser = await this.userModel.findById(booking.user);
+    if (bookingUser?.deviceTokens?.length) {
+      await this.notificationService.notifyBookingResponse(
+        bookingUser.deviceTokens,
+        {
+          annonceId: savedAnnonce._id.toString(),
+          annonceTitle: savedAnnonce.title,
+          bookingDate: this.formatBookingDate(booking.bookingStartDate),
+          bookingUserName: bookingUser.username,
+          type: 'BOOKING_RESPONSE',
+          accepted: accept ? 'true' : 'false',
+        },
+      );
+    }
+
+    return savedAnnonce;
+  }
+
+  private formatBookingDate(date: Date) {
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
   }
 }

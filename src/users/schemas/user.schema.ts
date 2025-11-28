@@ -50,6 +50,9 @@ export class User {
 
   @Prop({ default: false })
   isVerified: boolean;
+
+  @Prop({ type: [String], default: [] })
+  deviceTokens: string[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
