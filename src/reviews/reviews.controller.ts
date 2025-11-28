@@ -13,6 +13,8 @@ import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { Req } from '@nestjs/common';
+
 
 @ApiTags('reviews')
 @ApiBearerAuth('access-token')
@@ -21,11 +23,14 @@ import { AuthGuard } from '@nestjs/passport';
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 
-  @Post()
-  @ApiOperation({ summary: 'Create a new review' })
-  create(@Body() dto: CreateReviewDto) {
-    return this.reviewsService.create(dto);
-  }
+ @Post()
+@ApiOperation({ summary: 'Create a new review' })
+create(@Body() dto: CreateReviewDto, @Req() req: any) {
+  const userId = req.user.userId; // 🔥 from JWT payload
+  return this.reviewsService.create(userId, dto);
+}
+
+
 
   @Get()
   @ApiOperation({ summary: 'Get all reviews' })

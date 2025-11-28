@@ -12,12 +12,4 @@ export class CreateReviewDto {
   @IsString()
   @IsNotEmpty()
   comment: string;
-
-  @ApiProperty({
-    example: '6731a9f89b48f3a2e1a12345',
-    description: 'ID of an existing user',
-  })
-  @IsString()
-  @IsNotEmpty()
-  userId: string;
 }

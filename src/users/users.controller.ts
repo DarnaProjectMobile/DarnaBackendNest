@@ -20,6 +20,7 @@ import { CreateMailDto } from '../mail/dto/create-mail.dto';
 
 import { ForgotPasswordDto } from '../mail/dto/forgot-password.dto';
 import { ResetPasswordDto } from '../mail/dto/reset-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @ApiTags('User')
 @Controller('users')
@@ -35,12 +36,20 @@ export class UsersController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
-  async getMe(@CurrentUser() user: any) {
-    console.log('🧠 Current user from JWT:', user);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-    return this.usersService.findById(user.userId);
-  }
+@UseGuards(JwtAuthGuard)
+async getMe(@CurrentUser() user: any) {
+  return this.usersService.findById(user.userId);
+}
+
+@Patch('me')
+@UseGuards(JwtAuthGuard)
+async updateMe(
+  @CurrentUser() user: any,
+  @Body() body: UpdateUserDto,
+) {
+  return this.usersService.updateUser(user.userId, body);
+}
+
 
   // 🖼️ Upload / update profile image
   @Patch('me/image')
