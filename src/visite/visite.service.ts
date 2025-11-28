@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Visite, VisiteDocument } from './schemas/visite.schema';
 import { CreateVisiteDto } from './dto/create-visite.dto';
 import { UpdateVisiteDto } from './dto/update-visite.dto';
@@ -9,6 +9,7 @@ import { CreateReviewDto } from '../reviews/dto/create-review.dto';
 import { ReviewDocument } from '../reviews/entities/review.entity';
 import { UsersService } from '../users/users.service';
 import { LogementService } from '../logement/logement.service';
+import { NotificationsService } from '../notifications/notifications.service';
 @Injectable()
 export class VisiteService {
   constructor(
@@ -16,16 +17,45 @@ export class VisiteService {
     private reviewsService: ReviewsService,
     private usersService: UsersService,
     private logementService: LogementService,
+    @Inject(forwardRef(() => NotificationsService))
+    private notificationsService: NotificationsService,
   ) {}
 
   async create(createVisiteDto: CreateVisiteDto, userId: string): Promise<Visite> {
+    // Parse and validate the date
+    const dateVisite = new Date(createVisiteDto.dateVisite);
+    if (isNaN(dateVisite.getTime())) {
+      throw new BadRequestException('Date de visite invalide');
+    }
+
     const visite = new this.visiteModel({
       ...createVisiteDto,
       userId,
-      dateVisite: new Date(createVisiteDto.dateVisite),
+      dateVisite: dateVisite,
       status: 'pending',
     });
-    return visite.save();
+    
+    // Save the visite to MongoDB
+    const savedVisite = await visite.save();
+    
+    // Verify the visite was saved correctly
+    if (!savedVisite || !savedVisite._id) {
+      throw new BadRequestException('Erreur lors de l\'enregistrement de la visite dans MongoDB');
+    }
+    
+    // Enrichir la visite pour obtenir les informations nécessaires
+    const enrichedVisite = await this.enrichVisites([savedVisite]);
+    const visiteData = enrichedVisite[0];
+    
+    // Créer une notification pour le colocator
+    try {
+      await this.notificationsService.notifyNewVisiteReserved(visiteData);
+    } catch (error) {
+      console.error('Erreur lors de la création de la notification:', error);
+      // Ne pas faire échouer la création de la visite si la notification échoue
+    }
+    
+    return savedVisite;
   }
 
   async findAll(): Promise<any[]> {
@@ -60,6 +90,112 @@ export class VisiteService {
     return this.enrichVisites(visites);
   }
 
+  private async getLogementByIdOrAnnonceId(logementId: string) {
+    try {
+      // Vérifier si c'est un ObjectId valide
+      if (Types.ObjectId.isValid(logementId) && new Types.ObjectId(logementId).toString() === logementId) {
+        return await this.logementService.findOne(logementId);
+      } else {
+        // Sinon, c'est probablement un annonceId
+        return await this.logementService.findByAnnonceId(logementId);
+      }
+    } catch (error) {
+      // Si le logement n'existe pas, créer un logement temporaire avec les infos disponibles
+      // Cela permet de continuer même si le logement n'a pas été créé dans MongoDB
+      const mockLogements: Record<string, any> = {
+        'appartement-3-pieces-centre-ville': {
+          annonceId: 'appartement-3-pieces-centre-ville',
+          title: 'Appartement 3 pièces - Centre Ville',
+          ownerId: 'default-owner-id',
+          address: 'Centre Ville, Tunis',
+          price: 450,
+          rooms: 3,
+          surface: 75
+        },
+        'studio-meuble-lyon': {
+          annonceId: 'studio-meuble-lyon',
+          title: 'Studio meublé - Lyon',
+          ownerId: 'default-owner-id',
+          address: 'Lyon, France',
+          price: 380,
+          rooms: 1,
+          surface: 25
+        },
+        'studio-meuble-lyon-1': {
+          annonceId: 'studio-meuble-lyon-1',
+          title: 'Studio meublé - Lyon',
+          ownerId: 'default-owner-id',
+          address: 'Lyon, France',
+          price: 380,
+          rooms: 1,
+          surface: 25
+        },
+        'studio-meuble-lyon-2': {
+          annonceId: 'studio-meuble-lyon-2',
+          title: 'Studio meublé - Lyon',
+          ownerId: 'default-owner-id',
+          address: 'Lyon, France',
+          price: 400,
+          rooms: 1,
+          surface: 28
+        },
+        'chambre-t4-marseille-8e': {
+          annonceId: 'chambre-t4-marseille-8e',
+          title: 'Chambre dans T4 - Marseille 8e',
+          ownerId: 'default-owner-id',
+          address: 'Marseille 8e, France',
+          price: 320,
+          rooms: 1,
+          surface: 15
+        }
+      };
+
+      // Chercher dans les logements mock
+      const mockLogement = mockLogements[logementId];
+      if (mockLogement) {
+        // Essayer de créer le logement dans MongoDB s'il n'existe pas
+        try {
+          await this.logementService.create({
+            annonceId: mockLogement.annonceId,
+            title: mockLogement.title,
+            description: `Logement créé automatiquement pour ${mockLogement.title}`,
+            address: mockLogement.address || (mockLogement.title.includes('Lyon') ? 'Lyon, France' : 
+                     mockLogement.title.includes('Marseille') ? 'Marseille, France' : 
+                     'Centre Ville, Tunis'),
+            price: mockLogement.price || 400,
+            rooms: mockLogement.rooms || (mockLogement.title.includes('Studio') ? 1 : 
+                   mockLogement.title.includes('3 pièces') ? 3 : 2),
+            surface: mockLogement.surface || 50,
+            available: true
+          }, mockLogement.ownerId);
+          // Récupérer le logement créé
+          try {
+            return await this.logementService.findByAnnonceId(mockLogement.annonceId);
+          } catch {
+            return mockLogement;
+          }
+        } catch (createError: any) {
+          // Si la création échoue (déjà existe ou autre erreur), essayer de récupérer
+          if (createError.message?.includes('existe déjà')) {
+            try {
+              return await this.logementService.findByAnnonceId(mockLogement.annonceId);
+            } catch {
+              return mockLogement;
+            }
+          }
+          return mockLogement;
+        }
+      }
+      
+      // Si aucun logement mock trouvé, créer un logement temporaire avec le logementId comme titre
+      return {
+        annonceId: logementId,
+        title: logementId,
+        ownerId: 'default-owner-id'
+      };
+    }
+  }
+
   private async enrichVisites(visites: VisiteDocument[]): Promise<any[]> {
     return Promise.all(
       visites.map(async (visite) => {
@@ -86,7 +222,7 @@ export class VisiteService {
         try {
           if (visite.logementId) {
             try {
-              const logement = await this.logementService.findOne(visite.logementId);
+              const logement = await this.getLogementByIdOrAnnonceId(visite.logementId);
               if (logement) {
                 visiteObj.logementTitle = logement.title;
                 visiteObj.logementAddress = logement.address;
@@ -126,16 +262,28 @@ export class VisiteService {
   async updateStatus(
     id: string,
     status: string,
+    cancelledByClient: boolean = false,
   ): Promise<any> {
-    const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled', 'refused'];
     if (!validStatuses.includes(status)) {
       throw new BadRequestException(
         `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
       );
     }
+    
+    // Si le statut est "cancelled" mais que cancelledByClient est false, c'est un refus par le collecteur
+    // On change le statut en "refused" pour distinguer
+    let finalStatus = status;
+    if (status === 'cancelled' && !cancelledByClient) {
+      finalStatus = 'refused';
+    }
+
+    // Récupérer la visite avant mise à jour pour vérifier l'ancien statut
+    const oldVisite = await this.visiteModel.findById(id).exec();
+    const wasConfirmed = oldVisite?.status === 'confirmed';
 
     const updatedVisite = await this.visiteModel
-      .findByIdAndUpdate(id, { status }, { new: true })
+      .findByIdAndUpdate(id, { status: finalStatus }, { new: true })
       .exec();
 
     if (!updatedVisite) {
@@ -143,7 +291,25 @@ export class VisiteService {
     }
 
     const enriched = await this.enrichVisites([updatedVisite]);
-    return enriched[0];
+    const visiteData = enriched[0];
+
+    // Créer des notifications selon le statut
+    try {
+      if (finalStatus === 'confirmed') {
+        await this.notificationsService.notifyVisiteAccepted(visiteData);
+      } else if (finalStatus === 'cancelled') {
+        // Si c'est le client qui annule, notifier le colocateur (même si la visite n'était pas confirmée)
+        await this.notificationsService.notifyVisiteCancelledByClient(visiteData);
+      } else if (finalStatus === 'refused') {
+        // Si c'est le collecteur qui refuse, notifier le client
+        await this.notificationsService.notifyVisiteRejected(visiteData);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la création de la notification:', error);
+      // Ne pas faire échouer la mise à jour si la notification échoue
+    }
+
+    return visiteData;
   }
 
   async remove(id: string): Promise<void> {
@@ -222,9 +388,31 @@ export class VisiteService {
       throw new BadRequestException('Vous devez d\'abord valider la visite avant de l\'évaluer');
     }
 
-    // Créer la review
+    // Récupérer le logement pour déterminer le collector/propriétaire
+    if (!visite.logementId) {
+      throw new BadRequestException('La visite n\'est pas associée à un logement valide');
+    }
+
+    let logement;
+    let collectorId = 'default-owner-id'; // ID par défaut si le logement n'existe pas
+    
+    try {
+      logement = await this.getLogementByIdOrAnnonceId(visite.logementId);
+      collectorId = logement?.ownerId || collectorId;
+    } catch (error) {
+      // Si le logement n'existe pas, utiliser un ID par défaut
+      // Cela permet de créer l'évaluation même si le logement n'est pas encore dans MongoDB
+      console.warn(`Logement ${visite.logementId} non trouvé, utilisation de l'ID par défaut pour l'évaluation`);
+    }
+
+    // Créer la review même si le logement n'existe pas encore
     const review = await this.reviewsService.create(
-      { ...createReviewDto, visiteId: id },
+      {
+        ...createReviewDto,
+        visiteId: id,
+        logementId: visite.logementId,
+        collectorId: collectorId,
+      },
       userId,
     );
 

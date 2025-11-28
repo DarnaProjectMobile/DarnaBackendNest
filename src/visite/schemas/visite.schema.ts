@@ -14,8 +14,8 @@ export class Visite {
   @Prop({ required: true })
   dateVisite: Date; // Date et heure de la visite
 
-  @Prop({ required: false, enum: ['pending', 'confirmed', 'completed', 'cancelled'], default: 'pending' })
-  status: string; // Statut: 'pending', 'confirmed', 'completed', 'cancelled'
+  @Prop({ required: false, enum: ['pending', 'confirmed', 'completed', 'cancelled', 'refused'], default: 'pending' })
+  status: string; // Statut: 'pending', 'confirmed', 'completed', 'cancelled' (par client), 'refused' (par collecteur)
 
   @Prop({ required: false })
   notes?: string; // Notes optionnelles

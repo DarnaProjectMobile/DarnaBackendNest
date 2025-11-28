@@ -85,7 +85,7 @@ import Foundation
 
 class AuthService {
     static let shared = AuthService()
-    private let baseURL = "http://192.168.1.109:3002"
+    private let baseURL = "http://192.168.137.217:3002"
     
     // Login
     func login(email: String, password: String) async throws -> LoginResponse {

@@ -20,6 +20,12 @@ export class Notification {
   @Prop({ required: false, type: String })
   visiteId?: string; // ID de la visite concernée (si applicable)
 
+  @Prop({ required: false, type: String })
+  logementId?: string; // ID du logement concerné (si applicable)
+
+  @Prop({ required: false, type: String })
+  logementTitle?: string; // Titre du logement (pour affichage)
+
   @Prop({ default: false })
   read: boolean; // Notification lue ou non
 
@@ -28,6 +34,9 @@ export class Notification {
 
   @Prop({ required: false })
   actionUrl?: string; // URL d'action (optionnel)
+
+  @Prop({ required: false, type: Date })
+  scheduledFor?: Date; // Date/heure programmée pour les rappels
 }
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);

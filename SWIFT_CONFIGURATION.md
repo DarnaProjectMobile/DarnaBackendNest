@@ -2,11 +2,11 @@
 
 ## 🌐 URL du Backend
 
-Votre backend tourne sur la machine avec l'IP : **192.168.1.109** sur le port **3002**
+Votre backend tourne sur la machine avec l'IP : **192.168.137.217** sur le port **3002**
 
 ### ✅ URL Base à utiliser dans Swift :
 ```
-http://192.168.1.109:3002
+http://192.168.137.217:3002
 ```
 
 ---
@@ -20,7 +20,7 @@ import Foundation
 
 struct APIConfig {
     // ⚠️ CHANGEZ CETTE IP PAR L'IP DU PC QUI FAIT TOURNER LE BACKEND
-    static let baseURL = "http://192.168.1.109:3002"
+    static let baseURL = "http://192.168.137.217:3002"
     
     static let endpoints = [
         "login": "\(baseURL)/auth/login",
@@ -216,7 +216,7 @@ Si vous utilisez HTTP (non HTTPS), ajoutez dans votre `Info.plist` :
     <true/>
     <key>NSExceptionDomains</key>
     <dict>
-        <key>192.168.1.109</key>
+        <key>192.168.137.217</key>
         <dict>
             <key>NSExceptionAllowsInsecureHTTPLoads</key>
             <true/>
@@ -238,7 +238,7 @@ Si vous utilisez HTTP (non HTTPS), ajoutez dans votre `Info.plist` :
 
 ## ✅ Points importants
 
-1. **IP du Backend** : Changez `192.168.1.109` si l'IP du PC backend change
+1. **IP du Backend** : Changez `192.168.137.217` si l'IP du PC backend change
 2. **Port** : Le backend écoute sur le port `3002`
 3. **Token JWT** : Pour les endpoints protégés, ajoutez `Authorization: Bearer <token>` dans les headers
 4. **CORS** : Le backend est déjà configuré pour accepter les requêtes depuis n'importe quelle origine
@@ -251,7 +251,7 @@ Si vous utilisez HTTP (non HTTPS), ajoutez dans votre `Info.plist` :
 ```swift
 // Test simple pour vérifier la connexion
 func testConnection() {
-    guard let url = URL(string: "http://192.168.1.109:3002") else { return }
+    guard let url = URL(string: "http://192.168.137.217:3002") else { return }
     
     URLSession.shared.dataTask(with: url) { data, response, error in
         if let error = error {
@@ -272,7 +272,7 @@ func testConnection() {
 - **Annonces** : `/annonces/*`
 - **Reviews** : `/reviews/*`
 - **Visite** : `/visite/*`
-- **Swagger Docs** : `http://192.168.1.109:3002/api`
+- **Swagger Docs** : `http://192.168.137.217:3002/api`
 
 ---
 

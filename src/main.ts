@@ -67,20 +67,44 @@ async function bootstrap() {
   const port = process.env.PORT ? Number(process.env.PORT) : 3007;
   
   // Get local IP address for network access
+  // Priority: 192.168.x.x > 10.x.x.x > other private IPs > APIPA (169.254.x.x)
   const getLocalIP = (): string => {
     const interfaces = os.networkInterfaces();
+    const ipAddresses: { ip: string; priority: number }[] = [];
+    
     for (const name of Object.keys(interfaces)) {
       const networkInterface = interfaces[name];
       if (networkInterface) {
         for (const iface of networkInterface) {
           // Skip internal (loopback) addresses and non-IPv4
           if (iface.family === 'IPv4' && !iface.internal) {
-            return iface.address;
+            const ip = iface.address;
+            let priority = 3; // Default priority (lowest)
+            
+            // Priority 1: 192.168.x.x (most common home network)
+            if (ip.startsWith('192.168.')) {
+              priority = 1;
+            }
+            // Priority 2: 10.x.x.x (common corporate/VPN networks)
+            else if (ip.startsWith('10.')) {
+              priority = 2;
+            }
+            // Priority 4: APIPA (169.254.x.x) - avoid if possible
+            else if (ip.startsWith('169.254.')) {
+              priority = 4;
+            }
+            
+            ipAddresses.push({ ip, priority });
           }
         }
       }
     }
-    return 'localhost';
+    
+    // Sort by priority (lower number = higher priority)
+    ipAddresses.sort((a, b) => a.priority - b.priority);
+    
+    // Return the highest priority IP, or localhost if none found
+    return ipAddresses.length > 0 ? ipAddresses[0].ip : 'localhost';
   };
 
   const localIP = getLocalIP();

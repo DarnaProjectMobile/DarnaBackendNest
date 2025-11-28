@@ -1,23 +1,25 @@
-import { Controller, Get, Post, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Delete, Put, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/common/current-user.decorator';
 
 @ApiTags('Notifications')
-@Controller('notifications')
+@Controller('notification')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  @Get()
+  @Get('my-notifications')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Récupérer mes notifications' })
   @ApiResponse({ status: 200, description: 'Liste des notifications' })
   @ApiResponse({ status: 401, description: 'Non autorisé' })
   getMyNotifications(@CurrentUser() user: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.notificationsService.findByUserId(user.userId);
+    const userId = user.userId;
+    console.log(`[NotificationsController] Récupération des notifications pour userId: ${userId}, role: ${user.role}`);
+    return this.notificationsService.findByUserId(userId);
   }
 
   @Get('unread-count')
@@ -28,10 +30,22 @@ export class NotificationsController {
   async getUnreadCount(@CurrentUser() user: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     const count = await this.notificationsService.getUnreadCount(user.userId);
-    return { unreadCount: count };
+    return { count };
   }
 
-  @Post(':id/read')
+  @Get(':id')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Récupérer une notification par ID' })
+  @ApiParam({ name: 'id', description: 'ID de la notification' })
+  @ApiResponse({ status: 200, description: 'Notification trouvée' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 404, description: 'Notification non trouvée' })
+  async getNotificationById(@Param('id') id: string, @CurrentUser() user: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.notificationsService.findById(id, user.userId);
+  }
+
+  @Put(':id/read')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Marquer une notification comme lue' })
   @ApiParam({ name: 'id', description: 'ID de la notification' })
@@ -43,7 +57,7 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(id, user.userId);
   }
 
-  @Post('read-all')
+  @Put('read-all')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Marquer toutes les notifications comme lues' })
   @ApiResponse({ status: 200, description: 'Toutes les notifications marquées comme lues' })
@@ -51,7 +65,20 @@ export class NotificationsController {
   async markAllAsRead(@CurrentUser() user: any) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     await this.notificationsService.markAllAsRead(user.userId);
-    return { message: 'Toutes les notifications ont été marquées comme lues' };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.notificationsService.findByUserId(user.userId);
+  }
+
+  @Put(':id/hide')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Masquer une notification' })
+  @ApiParam({ name: 'id', description: 'ID de la notification' })
+  @ApiResponse({ status: 200, description: 'Notification masquée' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 404, description: 'Notification non trouvée' })
+  hideNotification(@Param('id') id: string, @CurrentUser() user: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.notificationsService.hideNotification(id, user.userId);
   }
 
   @Delete(':id')
@@ -72,7 +99,7 @@ export class NotificationsController {
   @ApiResponse({ status: 200, description: 'Vérification effectuée' })
   @ApiResponse({ status: 401, description: 'Non autorisé' })
   async checkUpcomingVisites() {
-    await this.notificationsService.checkUpcomingVisites();
+    await this.notificationsService.checkScheduledReminders();
     await this.notificationsService.checkMissedVisites();
     return { message: 'Vérification des visites effectuée avec succès' };
   }

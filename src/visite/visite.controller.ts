@@ -80,7 +80,7 @@ export class VisiteController {
   @ApiResponse({ status: 403, description: 'Accès refusé - Colocataire uniquement' })
   @ApiResponse({ status: 404, description: 'Visite non trouvée' })
   acceptVisite(@Param('id') id: string) {
-    return this.visiteService.updateStatus(id, 'confirmed');
+    return this.visiteService.updateStatus(id, 'confirmed', false);
   }
 
   // 🏠 CÔTÉ COLOCATAIRE : Refuser une visite
@@ -88,14 +88,15 @@ export class VisiteController {
   @UseGuards(RolesGuard)
   @Roles(Role.Collocator)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Refuser une visite (Colocataire uniquement) - Change le statut à "cancelled"' })
+  @ApiOperation({ summary: 'Refuser une visite (Colocataire uniquement) - Change le statut à "refused"' })
   @ApiParam({ name: 'id', description: 'ID de la visite' })
   @ApiResponse({ status: 200, description: 'Visite refusée avec succès' })
   @ApiResponse({ status: 401, description: 'Non autorisé' })
   @ApiResponse({ status: 403, description: 'Accès refusé - Colocataire uniquement' })
   @ApiResponse({ status: 404, description: 'Visite non trouvée' })
   rejectVisite(@Param('id') id: string) {
-    return this.visiteService.updateStatus(id, 'cancelled');
+    // Passer directement 'refused' car c'est le colocateur qui refuse
+    return this.visiteService.updateStatus(id, 'refused', false);
   }
 
   // 👤 CÔTÉ CLIENT : Annuler sa propre visite
@@ -103,7 +104,7 @@ export class VisiteController {
   @UseGuards(RolesGuard)
   @Roles(Role.Client)
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Annuler une visite (Client uniquement - seulement ses propres visites) - Change le statut à "cancelled"' })
+  @ApiOperation({ summary: 'Annuler une visite (Client uniquement - seulement ses propres visites) - Change le statut à "cancelled" et notifie le colocateur' })
   @ApiParam({ name: 'id', description: 'ID de la visite' })
   @ApiResponse({ status: 200, description: 'Visite annulée avec succès' })
   @ApiResponse({ status: 401, description: 'Non autorisé' })
@@ -117,7 +118,8 @@ export class VisiteController {
       throw new ForbiddenException('Vous ne pouvez annuler que vos propres visites');
     }
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.visiteService.updateStatus(id, 'cancelled');
+    // Passer cancelledByClient = true pour notifier le colocateur
+    return this.visiteService.updateStatus(id, 'cancelled', true);
   }
 
   // 🏠 CÔTÉ COLOCATAIRE : Mettre à jour le statut d'une visite (méthode générique)
@@ -152,7 +154,9 @@ export class VisiteController {
     // Les colocataires peuvent changer le statut librement
     
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.visiteService.updateStatus(id, body.status);
+    // Si c'est un client qui annule, passer cancelledByClient = true
+    const cancelledByClient = user.role === Role.Client && body.status === 'cancelled';
+    return this.visiteService.updateStatus(id, body.status, cancelledByClient);
   }
 
   // 👤 CÔTÉ CLIENT : Voir une visite spécifique (seulement ses propres visites)
