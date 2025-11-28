@@ -1,12 +1,13 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
   Patch,
+  Post,
+  UploadedFile,
   UseGuards,
   UseInterceptors,
-  UploadedFile,
-  Body,
-  Post,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -20,6 +21,7 @@ import { CreateMailDto } from '../mail/dto/create-mail.dto';
 
 import { ForgotPasswordDto } from '../mail/dto/forgot-password.dto';
 import { ResetPasswordDto } from '../mail/dto/reset-password.dto';
+import { DeviceTokenDto } from './dto/device-token.dto';
 
 @ApiTags('User')
 @Controller('users')
@@ -69,7 +71,7 @@ export class UsersController {
     return this.usersService.updateImageById(user.userId, file.filename);
   }
 
-  @Post('send-verification')
+  @Post('000000000000000000000000000000')
   @UseGuards(JwtAuthGuard)
   sendVerification(@CurrentUser() user: any) {
     return this.usersService.sendVerificationCodeById(user.userId);
@@ -91,6 +93,30 @@ export class UsersController {
       body.code,
       body.newPassword,
       body.confirmPassword,
+    );
+  }
+
+  @Post('me/device-token')
+  @UseGuards(JwtAuthGuard)
+  async registerDeviceToken(
+    @CurrentUser() user: any,
+    @Body() body: DeviceTokenDto,
+  ) {
+    return this.usersService.registerDeviceToken(
+      user.userId as string,
+      body.deviceToken,
+    );
+  }
+
+  @Delete('me/device-token')
+  @UseGuards(JwtAuthGuard)
+  async removeDeviceToken(
+    @CurrentUser() user: any,
+    @Body() body: DeviceTokenDto,
+  ) {
+    return this.usersService.removeDeviceToken(
+      user.userId as string,
+      body.deviceToken,
     );
   }
 }

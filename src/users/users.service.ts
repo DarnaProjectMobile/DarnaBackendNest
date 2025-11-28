@@ -144,4 +144,26 @@ export class UsersService {
 
     return { message: 'Password reset successful' };
   }
+
+  async registerDeviceToken(userId: string, deviceToken: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new BadRequestException('User not found');
+
+    if (!user.deviceTokens.includes(deviceToken)) {
+      user.deviceTokens.push(deviceToken);
+      await user.save();
+    }
+
+    return { message: 'Device token registered' };
+  }
+
+  async removeDeviceToken(userId: string, deviceToken: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new BadRequestException('User not found');
+
+    user.deviceTokens = user.deviceTokens.filter(token => token !== deviceToken);
+    await user.save();
+
+    return { message: 'Device token removed' };
+  }
 }

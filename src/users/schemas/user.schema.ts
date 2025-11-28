@@ -1,11 +1,14 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { Role } from 'src/auth/common/role.enum';
 
 export type UserDocument = HydratedDocument<User>;
 
 @Schema({ timestamps: true })
 export class User {
+  // 👇 Add this line
+  _id: Types.ObjectId;
+
   @Prop({ required: true })
   username: string;
 
@@ -27,12 +30,10 @@ export class User {
   @Prop({ required: true, enum: ['Male', 'Female'] })
   gender: string;
 
-
   @Prop()
   image?: string;
 
-  
-@Prop()
+  @Prop()
   resetCode?: string;
 
   @Prop({ type: Number, default: 0 })
@@ -47,8 +48,11 @@ export class User {
   @Prop({ required: false })
   verificationCode?: string;
 
-@Prop({ default: false })
+  @Prop({ default: false })
   isVerified: boolean;
+
+  @Prop({ type: [String], default: [] })
+  deviceTokens: string[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
