@@ -144,6 +144,30 @@ export class UsersService {
 
     return { message: 'Password reset successful' };
   }
+  async updateUser(userId: string, updateData: any): Promise<User | null> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Prevent duplicate email
+    if (updateData.email && updateData.email !== user.email) {
+      const emailExists = await this.userModel.findOne({ email: updateData.email });
+      if (emailExists) {
+        throw new BadRequestException('Email already in use');
+      }
+    }
+
+    // Hash password only if updated
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    }
+
+    // Apply updates
+    Object.assign(user, updateData);
+    await user.save();
+
+    return user;
 
   async registerDeviceToken(userId: string, deviceToken: string) {
     const user = await this.userModel.findById(userId);

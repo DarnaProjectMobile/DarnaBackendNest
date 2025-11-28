@@ -1,26 +1,47 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { CreateReportDto } from './dto/create-report.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
+import { Report } from './entities/report.entity';
 
 @Injectable()
 export class ReportsService {
-  create(createReportDto: CreateReportDto) {
-    return 'This action adds a new report';
+  constructor(@InjectModel(Report.name) private readonly reportModel: Model<Report>) {}
+
+  async create(userId: string, dto: CreateReportDto) {
+    const report = new this.reportModel({
+      reason: dto.reason,
+      details: dto.details,
+      user: userId,
+    });
+
+    return report.save();
   }
 
-  findAll() {
-    return `This action returns all reports`;
+  async findAll() {
+    return this.reportModel.find().populate('user', 'name email role');
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} report`;
+  async findOne(id: string) {
+    const report = await this.reportModel.findById(id).populate('user', 'name email role');
+    if (!report) throw new NotFoundException(`Report with ID ${id} not found`);
+    return report;
   }
 
-  update(id: number, updateReportDto: UpdateReportDto) {
-    return `This action updates a #${id} report`;
+  async update(id: string, dto: UpdateReportDto) {
+    const updated = await this.reportModel
+      .findByIdAndUpdate(id, dto, { new: true })
+      .populate('user', 'name email role');
+
+    if (!updated) throw new NotFoundException(`Report with ID ${id} not found`);
+    return updated;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} report`;
+  async remove(id: string) {
+    const deleted = await this.reportModel.findByIdAndDelete(id);
+    if (!deleted) throw new NotFoundException(`Report with ID ${id} not found`);
+
+    return { message: 'Report deleted successfully' };
   }
 }

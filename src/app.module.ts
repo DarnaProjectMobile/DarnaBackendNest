@@ -12,6 +12,7 @@ import { VisiteModule } from './visite/visite.module';
 import { LogementModule } from './logement/logement.module';
 import { NotificationModule } from './notification/notification.module';
 import { EvaluationModule } from './evaluation/evaluation.module';
+import { ApireviewsModule } from './apireviews/apireviews.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { EvaluationModule } from './evaluation/evaluation.module';
     LogementModule,
     NotificationModule,
     EvaluationModule,
+    ApireviewsModule,
   ],
 })
 export class AppModule {}
