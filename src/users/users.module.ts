@@ -12,6 +12,9 @@ import { MailModule } from 'src/mail/mail.module';
   ],
   controllers: [UsersController],
   providers: [UsersService],
-  exports: [UsersService],
+  exports: [
+    UsersService,
+    MongooseModule, // ✅ Export MongooseModule so @InjectModel(User.name) works
+  ],
 })
 export class UsersModule {}
