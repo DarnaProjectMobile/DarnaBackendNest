@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
@@ -10,7 +11,7 @@ import { ReportsModule } from './reports/reports.module';
 import { PubliciteModule } from './publicite/publicite.module';
 import { VisiteModule } from './visite/visite.module';
 import { LogementModule } from './logement/logement.module';
-import { NotificationsModule } from './notifications/notifications.module';
+import { NotificationsFirebaseModule } from './notifications-firebase/notifications-firebase.module';
 
 
 @Module({
@@ -20,10 +21,11 @@ import { NotificationsModule } from './notifications/notifications.module';
       isGlobal: true, // makes env vars available everywhere
     }),
 
-MongooseModule.forRoot(
-  process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/DarnaDB',
-),
+    MongooseModule.forRoot(
+      process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/DarnaDB',
+    ),
 
+    ScheduleModule.forRoot(),
     UsersModule,
     AuthModule,
     MailModule,
@@ -33,9 +35,7 @@ MongooseModule.forRoot(
     PubliciteModule,
     VisiteModule,
     LogementModule,
-    NotificationsModule,
- 
-  
+    NotificationsFirebaseModule,
   ],
 })
 export class AppModule {}

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Visite, VisiteDocument } from './schemas/visite.schema';
@@ -9,7 +9,7 @@ import { CreateReviewDto } from '../reviews/dto/create-review.dto';
 import { ReviewDocument } from '../reviews/entities/review.entity';
 import { UsersService } from '../users/users.service';
 import { LogementService } from '../logement/logement.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsFirebaseService } from '../notifications-firebase/notifications-firebase.service';
 @Injectable()
 export class VisiteService {
   constructor(
@@ -17,8 +17,7 @@ export class VisiteService {
     private reviewsService: ReviewsService,
     private usersService: UsersService,
     private logementService: LogementService,
-    @Inject(forwardRef(() => NotificationsService))
-    private notificationsService: NotificationsService,
+    private notificationsFirebaseService: NotificationsFirebaseService,
   ) {}
 
   async create(createVisiteDto: CreateVisiteDto, userId: string): Promise<Visite> {
@@ -41,18 +40,6 @@ export class VisiteService {
     // Verify the visite was saved correctly
     if (!savedVisite || !savedVisite._id) {
       throw new BadRequestException('Erreur lors de l\'enregistrement de la visite dans MongoDB');
-    }
-    
-    // Enrichir la visite pour obtenir les informations nécessaires
-    const enrichedVisite = await this.enrichVisites([savedVisite]);
-    const visiteData = enrichedVisite[0];
-    
-    // Créer une notification pour le colocator
-    try {
-      await this.notificationsService.notifyNewVisiteReserved(visiteData);
-    } catch (error) {
-      console.error('Erreur lors de la création de la notification:', error);
-      // Ne pas faire échouer la création de la visite si la notification échoue
     }
     
     return savedVisite;
@@ -293,16 +280,54 @@ export class VisiteService {
     const enriched = await this.enrichVisites([updatedVisite]);
     const visiteData = enriched[0];
 
-    // Créer des notifications selon le statut
+    // Créer des notifications selon le statut (Firebase uniquement)
     try {
       if (finalStatus === 'confirmed') {
-        await this.notificationsService.notifyVisiteAccepted(visiteData);
-      } else if (finalStatus === 'cancelled') {
-        // Si c'est le client qui annule, notifier le colocateur (même si la visite n'était pas confirmée)
-        await this.notificationsService.notifyVisiteCancelledByClient(visiteData);
+        // Notifications Firebase pour le client + planification des rappels
+        const visiteId =
+          (visiteData as any).id ||
+          (visiteData as any)._id?.toString?.() ||
+          id;
+        await this.notificationsFirebaseService.notifyVisitAccepted({
+          userId: visiteData.userId,
+          visitId: visiteId,
+          housingId: visiteData.logementId,
+          housingTitle: visiteData.logementTitle,
+        });
+        if (visiteData.dateVisite) {
+          // Récupérer le propriétaire du logement pour les rappels collector
+          let collectorId: string | undefined;
+          try {
+            if (visiteData.logementId) {
+              const logement = await this.getLogementByIdOrAnnonceId(visiteData.logementId);
+              collectorId = logement?.ownerId;
+            }
+          } catch (error) {
+            console.warn('Impossible de récupérer le propriétaire pour les rappels:', error);
+          }
+
+          await this.notificationsFirebaseService.scheduleVisitReminders({
+            userId: visiteData.userId,
+            visitId: visiteId,
+            housingId: visiteData.logementId,
+            housingTitle: visiteData.logementTitle,
+            visitDate: new Date(visiteData.dateVisite),
+            collectorId: collectorId,
+            clientName: visiteData.clientUsername || visiteData.clientName || 'un client',
+          });
+        }
       } else if (finalStatus === 'refused') {
         // Si c'est le collecteur qui refuse, notifier le client
-        await this.notificationsService.notifyVisiteRejected(visiteData);
+        const visiteId =
+          (visiteData as any).id ||
+          (visiteData as any)._id?.toString?.() ||
+          id;
+        await this.notificationsFirebaseService.notifyVisitRefused({
+          userId: visiteData.userId,
+          visitId: visiteId,
+          housingId: visiteData.logementId,
+          housingTitle: visiteData.logementTitle,
+        });
       }
     } catch (error) {
       console.error('Erreur lors de la création de la notification:', error);

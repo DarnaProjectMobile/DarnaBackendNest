@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { VisiteService } from './visite.service';
 import { VisiteController } from './visite.controller';
@@ -6,7 +6,7 @@ import { Visite, VisiteSchema } from './schemas/visite.schema';
 import { ReviewsModule } from '../reviews/reviews.module';
 import { UsersModule } from '../users/users.module';
 import { LogementModule } from '../logement/logement.module';
-import { NotificationsModule } from '../notifications/notifications.module';
+import { NotificationsFirebaseModule } from '../notifications-firebase/notifications-firebase.module';
 
 @Module({
   imports: [
@@ -14,7 +14,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ReviewsModule,
     UsersModule,
     LogementModule,
-    forwardRef(() => NotificationsModule),
+    NotificationsFirebaseModule,
   ],
   controllers: [VisiteController],
   providers: [VisiteService],

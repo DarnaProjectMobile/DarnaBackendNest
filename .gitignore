@@ -47,6 +47,12 @@ Thumbs.db
 .env.production.local
 .env.local
 
+# Firebase service account (sensitive)
+firebase-service-account.json
+
+# Firebase client config (can be public but usually kept private)
+google-services.json
+
 # temp directory
 .temp
 .tmp
