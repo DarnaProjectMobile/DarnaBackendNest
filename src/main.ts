@@ -3,17 +3,22 @@ import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import * as express from 'express';
-import { ValidationPipe } from '@nestjs/common'; // ✅ Add this import
+import { ValidationPipe } from '@nestjs/common';
+import * as bodyParser from 'body-parser'; // ✅ Add this import
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // ✅ Increase request size limit to 10MB
+  app.use(bodyParser.json({ limit: '10mb' }));
+  app.use(bodyParser.urlencoded({ limit: '10mb', extended: true }));
+
   // ✅ Enable global validation
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // remove properties not in DTO
-      forbidNonWhitelisted: false, // throw error if extra fields sent
-      transform: true, // automatically transform payloads to DTO instances
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      transform: true,
     }),
   );
 
