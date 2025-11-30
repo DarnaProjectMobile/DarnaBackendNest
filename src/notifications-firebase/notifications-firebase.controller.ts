@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards, HttpException, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { NotificationsFirebaseService } from './notifications-firebase.service';
 import { RegisterTokenDto } from './dto/register-token.dto';
@@ -33,11 +33,12 @@ export class NotificationsFirebaseController {
         throw new HttpException('Utilisateur non authentifié', HttpStatus.UNAUTHORIZED);
       }
 
-      console.log(`[NotificationsFirebaseController] Tentative d'enregistrement du token FCM pour l'utilisateur: ${user.userId}, platform: ${body.platform}`);
+      console.log(`[NotificationsFirebaseController] 🔔 Tentative d'enregistrement du token FCM pour l'utilisateur: ${user.userId}, platform: ${body.platform}`);
+      console.log(`[NotificationsFirebaseController] Token reçu: ${body.fcmToken?.substring(0, 30)}... (${body.fcmToken?.length || 0} caractères)`);
       
       await this.notificationsService.registerToken(user.userId, body.platform, body.fcmToken);
       
-      console.log(`[NotificationsFirebaseController] Token FCM enregistré avec succès pour l'utilisateur: ${user.userId}`);
+      console.log(`[NotificationsFirebaseController] ✅ Token FCM enregistré avec succès pour l'utilisateur: ${user.userId}`);
       return { success: true };
     } catch (error: any) {
       console.error('[NotificationsFirebaseController] Erreur lors de l\'enregistrement du token:', error);
@@ -118,6 +119,42 @@ export class NotificationsFirebaseController {
           error: 'Internal Server Error',
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Supprimer une notification' })
+  @ApiParam({ name: 'id', description: 'ID de la notification' })
+  @ApiResponse({ status: 200, description: 'Notification supprimée' })
+  @ApiResponse({ status: 401, description: 'Non autorisé' })
+  @ApiResponse({ status: 404, description: 'Notification non trouvée' })
+  @ApiResponse({ status: 500, description: 'Erreur serveur' })
+  async deleteNotification(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+  ): Promise<{ success: boolean }> {
+    try {
+      await this.notificationsService.deleteNotification(user.userId, id);
+      return { success: true };
+    } catch (error: any) {
+      console.error('[NotificationsFirebaseController] Erreur lors de la suppression de la notification:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      const statusCode = error?.message?.includes('non trouvée') 
+        ? HttpStatus.NOT_FOUND 
+        : error?.message?.includes('autorisé')
+        ? HttpStatus.FORBIDDEN
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+      throw new HttpException(
+        {
+          statusCode,
+          message: error?.message || 'Erreur lors de la suppression de la notification',
+          error: 'Internal Server Error',
+        },
+        statusCode,
       );
     }
   }

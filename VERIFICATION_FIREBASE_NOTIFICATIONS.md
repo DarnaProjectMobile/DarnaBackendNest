@@ -124,3 +124,7 @@ Après l'envoi de la requête, vérifiez les logs du serveur. Vous devriez voir 
 
 Si l'erreur persiste, partagez les logs du serveur pour identifier la cause exacte.
 
+
+
+
+

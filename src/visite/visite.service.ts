@@ -288,12 +288,15 @@ export class VisiteService {
           (visiteData as any).id ||
           (visiteData as any)._id?.toString?.() ||
           id;
+        console.log(`[VisiteService] Envoi de notification "Visite acceptée" au client ${visiteData.userId} pour la visite ${visiteId}`);
+        
         await this.notificationsFirebaseService.notifyVisitAccepted({
           userId: visiteData.userId,
           visitId: visiteId,
           housingId: visiteData.logementId,
           housingTitle: visiteData.logementTitle,
         });
+        
         if (visiteData.dateVisite) {
           // Récupérer le propriétaire du logement pour les rappels collector
           let collectorId: string | undefined;
@@ -303,8 +306,10 @@ export class VisiteService {
               collectorId = logement?.ownerId;
             }
           } catch (error) {
-            console.warn('Impossible de récupérer le propriétaire pour les rappels:', error);
+            console.warn('[VisiteService] Impossible de récupérer le propriétaire pour les rappels:', error);
           }
+
+          console.log(`[VisiteService] Planification des rappels pour la visite ${visiteId} (date: ${visiteData.dateVisite}, client: ${visiteData.userId}, collector: ${collectorId || 'N/A'})`);
 
           await this.notificationsFirebaseService.scheduleVisitReminders({
             userId: visiteData.userId,
@@ -315,6 +320,8 @@ export class VisiteService {
             collectorId: collectorId,
             clientName: visiteData.clientUsername || visiteData.clientName || 'un client',
           });
+        } else {
+          console.warn(`[VisiteService] Pas de date de visite pour planifier les rappels (visite ${visiteId})`);
         }
       } else if (finalStatus === 'refused') {
         // Si c'est le collecteur qui refuse, notifier le client
@@ -322,6 +329,9 @@ export class VisiteService {
           (visiteData as any).id ||
           (visiteData as any)._id?.toString?.() ||
           id;
+        
+        console.log(`[VisiteService] Envoi de notification "Visite refusée" au client ${visiteData.userId} pour la visite ${visiteId}`);
+        
         await this.notificationsFirebaseService.notifyVisitRefused({
           userId: visiteData.userId,
           visitId: visiteId,
@@ -330,7 +340,7 @@ export class VisiteService {
         });
       }
     } catch (error) {
-      console.error('Erreur lors de la création de la notification:', error);
+      console.error('[VisiteService] Erreur lors de la création de la notification:', error);
       // Ne pas faire échouer la mise à jour si la notification échoue
     }
 
