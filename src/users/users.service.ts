@@ -168,6 +168,7 @@ export class UsersService {
     await user.save();
 
     return user;
+  }
 
   async registerDeviceToken(userId: string, deviceToken: string) {
     const user = await this.userModel.findById(userId);
