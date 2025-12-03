@@ -12,6 +12,7 @@ import { PubliciteModule } from './publicite/publicite.module';
 import { VisiteModule } from './visite/visite.module';
 import { LogementModule } from './logement/logement.module';
 import { NotificationsFirebaseModule } from './notifications-firebase/notifications-firebase.module';
+import { ChatModule } from './chat/chat.module';
 
 
 @Module({
@@ -36,6 +37,7 @@ import { NotificationsFirebaseModule } from './notifications-firebase/notificati
     VisiteModule,
     LogementModule,
     NotificationsFirebaseModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

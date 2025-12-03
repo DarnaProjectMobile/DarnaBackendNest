@@ -309,6 +309,35 @@ Veuillez :
     });
   }
 
+  async notifyNewMessage(params: {
+    userId: string;
+    visitId: string;
+    housingId?: string;
+    housingTitle?: string;
+    senderName: string;
+    messageContent: string;
+    hasImages?: boolean;
+  }): Promise<void> {
+    if (!this.isConfigured) {
+      return;
+    }
+    const title = `Nouveau message de ${params.senderName}`;
+    const body = params.hasImages 
+      ? `📷 ${params.senderName} a envoyé une image${params.messageContent ? `: ${params.messageContent}` : ''}`
+      : params.messageContent.length > 50 
+        ? `${params.messageContent.substring(0, 50)}...`
+        : params.messageContent;
+
+    await this.sendAndStoreNotification({
+      userId: params.userId,
+      type: NotificationType.NEW_MESSAGE,
+      title,
+      body,
+      visitId: params.visitId,
+      housingId: params.housingId,
+    });
+  }
+
   async scheduleVisitReminders(params: {
     userId: string;
     visitId: string;

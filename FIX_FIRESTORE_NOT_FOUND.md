@@ -83,3 +83,13 @@ Après l'enregistrement réussi, vous pouvez vérifier dans Firebase Console :
 2. Vérifiez que le projet Firebase correspond bien (project_id dans google-services.json = project_id dans firebase-service-account.json)
 3. Vérifiez les permissions du compte de service dans Firebase Console > Paramètres > Comptes de service
 
+
+
+
+
+
+
+
+
+
+
