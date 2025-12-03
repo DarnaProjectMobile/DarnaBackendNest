@@ -104,28 +104,4 @@ async updateMe(
       body.confirmPassword,
     );
   }
-
-  @Post('me/device-token')
-  @UseGuards(JwtAuthGuard)
-  async registerDeviceToken(
-    @CurrentUser() user: any,
-    @Body() body: DeviceTokenDto,
-  ) {
-    return this.usersService.registerDeviceToken(
-      user.userId as string,
-      body.deviceToken,
-    );
-  }
-
-  @Delete('me/device-token')
-  @UseGuards(JwtAuthGuard)
-  async removeDeviceToken(
-    @CurrentUser() user: any,
-    @Body() body: DeviceTokenDto,
-  ) {
-    return this.usersService.removeDeviceToken(
-      user.userId as string,
-      body.deviceToken,
-    );
-  }
 }
