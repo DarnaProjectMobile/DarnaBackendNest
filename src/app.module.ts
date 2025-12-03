@@ -13,6 +13,8 @@ import { LogementModule } from './logement/logement.module';
 import { NotificationModule } from './notification/notification.module';
 import { EvaluationModule } from './evaluation/evaluation.module';
 import { ApireviewsModule } from './apireviews/apireviews.module';
+import { QrCodeModule } from './qrcode/qrcode.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { ApireviewsModule } from './apireviews/apireviews.module';
     NotificationModule,
     EvaluationModule,
     ApireviewsModule,
+    QrCodeModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}
