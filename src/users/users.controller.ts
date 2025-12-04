@@ -10,6 +10,7 @@ import {
   Put,
   Delete,
   Param,
+  BadRequestException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -19,6 +20,7 @@ import { CurrentUser } from '../auth/common/current-user.decorator';
 import { ApiTags, ApiConsumes, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
+import { existsSync, mkdirSync } from 'fs';
 import { CreateMailDto } from '../mail/dto/create-mail.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ForgotPasswordDto } from '../mail/dto/forgot-password.dto';
@@ -66,22 +68,42 @@ export class UsersController {
   @UseInterceptors(
     FileInterceptor('image', {
       storage: diskStorage({
-        destination: './uploads/users',
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads/users';
+          if (!existsSync(uploadPath)) {
+            mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
         filename: (req, file, cb) => {
-          const uniqueName = Date.now() + '-' + file.originalname;
+          const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname;
           cb(null, uniqueName);
         },
       }),
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+          cb(new Error('Seuls les fichiers images sont autorisés!'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB max
+      },
     }),
   )
   async updateImage(
     @CurrentUser() user: any,
     @UploadedFile() file: Express.Multer.File, // ✅ lowercase variable name
   ) {
+    console.log('📤 Update profile image - File received:', file ? file.originalname : 'null');
+    
     if (!file) {
-      throw new Error('No image uploaded');
+      console.error('❌ No file provided in upload');
+      throw new BadRequestException('Aucune image fournie');
     }
 
+    console.log(`✅ Image uploaded: ${file.filename}`);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
     return this.usersService.updateImageById(user.userId, file.filename);
   }

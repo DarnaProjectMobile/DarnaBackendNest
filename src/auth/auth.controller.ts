@@ -4,11 +4,13 @@ import {
   Body,
   UploadedFile,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
+import { existsSync, mkdirSync } from 'fs';
 import { LoginDto } from './dto/login.dto';
 import { ApiConsumes, ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 
@@ -26,10 +28,26 @@ export class AuthController {
   @UseInterceptors(
     FileInterceptor('image', {
       storage: diskStorage({
-        destination: './uploads/users',
+        destination: (req, file, cb) => {
+          const uploadPath = './uploads/users';
+          if (!existsSync(uploadPath)) {
+            mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
         filename: (req, file, cb) =>
-          cb(null, Date.now() + '-' + file.originalname),
+          cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname),
       }),
+      fileFilter: (req, file, cb) => {
+        if (file && !file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
+          cb(new Error('Seuls les fichiers images sont autorisés!'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB max
+      },
     }),
   )
   register(

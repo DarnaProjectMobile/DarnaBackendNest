@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Put, UseGuards, ForbiddenException, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Put, UseGuards, ForbiddenException, UploadedFiles, UseInterceptors, BadRequestException } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { VisiteService } from './visite.service';
 import { CreateVisiteDto } from './dto/create-visite.dto';
@@ -13,6 +13,7 @@ import { Roles } from '../auth/roles.decorators';
 import { CurrentUser } from '../auth/common/current-user.decorator';
 import { Role } from '../auth/common/role.enum';
 import { diskStorage } from 'multer';
+import { existsSync, mkdirSync } from 'fs';
 
 @ApiTags('Visite')
 @Controller('visite')
@@ -248,10 +249,27 @@ export class VisiteController {
       [{ name: 'documents', maxCount: 10 }],
       {
         storage: diskStorage({
-          destination: './uploads/visites',
+          destination: (req, file, cb) => {
+            const uploadPath = './uploads/visites';
+            if (!existsSync(uploadPath)) {
+              mkdirSync(uploadPath, { recursive: true });
+            }
+            cb(null, uploadPath);
+          },
           filename: (req, file, cb) =>
-            cb(null, Date.now() + '-' + file.originalname),
+            cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname),
         }),
+        fileFilter: (req, file, cb) => {
+          // Accepter les images et les PDFs pour les documents
+          if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|pdf)$/)) {
+            cb(new Error('Seuls les fichiers images (jpg, jpeg, png, gif, webp) et PDF sont autorisés!'), false);
+          } else {
+            cb(null, true);
+          }
+        },
+        limits: {
+          fileSize: 10 * 1024 * 1024, // 10MB max per file
+        },
       },
     ),
   )
@@ -283,10 +301,27 @@ export class VisiteController {
       [{ name: 'documents', maxCount: 10 }, { name: 'screenshots', maxCount: 10 }],
       {
         storage: diskStorage({
-          destination: './uploads/visites/confirmation',
+          destination: (req, file, cb) => {
+            const uploadPath = './uploads/visites/confirmation';
+            if (!existsSync(uploadPath)) {
+              mkdirSync(uploadPath, { recursive: true });
+            }
+            cb(null, uploadPath);
+          },
           filename: (req, file, cb) =>
-            cb(null, Date.now() + '-' + file.originalname),
+            cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname),
         }),
+        fileFilter: (req, file, cb) => {
+          // Accepter les images et les PDFs
+          if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|pdf)$/)) {
+            cb(new BadRequestException('Seuls les fichiers images (jpg, jpeg, png, gif, webp) et PDF sont autorisés!'), false);
+          } else {
+            cb(null, true);
+          }
+        },
+        limits: {
+          fileSize: 10 * 1024 * 1024, // 10MB max per file
+        },
       },
     ),
   )

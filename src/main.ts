@@ -5,6 +5,8 @@ import { join } from 'path';
 import * as express from 'express';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import * as os from 'os'; // ✅ For network IP detection
+import { existsSync, mkdirSync } from 'fs';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -16,6 +18,9 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
+
+  // ✅ Global exception filter for handling multer errors and other exceptions
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   // ✅ Enable global validation
   app.useGlobalPipes(
@@ -40,8 +45,25 @@ async function bootstrap() {
     }),
   );
 
-  // Serve static files (e.g., uploaded images)
-  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+  // Create upload directories if they don't exist
+  const uploadDirs = [
+    join(__dirname, '..', 'uploads'),
+    join(__dirname, '..', 'uploads', 'users'),
+    join(__dirname, '..', 'uploads', 'chat'),
+    join(__dirname, '..', 'uploads', 'visites'),
+    join(__dirname, '..', 'uploads', 'visites', 'confirmation'),
+  ];
+  
+  uploadDirs.forEach(dir => {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+      console.log(`📁 Created upload directory: ${dir}`);
+    }
+  });
+
+  // Les fichiers sont maintenant servis de manière dynamique via UploadsController
+  // Plus besoin de middleware statique
+  console.log(`📁 Uploads directory: ${join(process.cwd(), 'uploads')}`);
 
   // Swagger configuration
   const config = new DocumentBuilder()

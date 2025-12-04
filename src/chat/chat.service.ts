@@ -237,10 +237,30 @@ export class ChatService {
       read: false,
     });
 
+    console.log(`[ChatService] 📝 Création du message avec images:`, {
+      images: message.images,
+      imagesCount: message.images?.length || 0,
+      type: messageType,
+      hasContent: hasContent,
+      hasImages: hasImages
+    });
+
     const savedMessage = await message.save();
-    console.log(`[ChatService] Message créé avec succès: ${savedMessage._id}, senderId: ${senderId}, receiverId: ${receiverId}`);
+    console.log(`[ChatService] ✅ Message sauvegardé dans MongoDB:`, {
+      id: savedMessage._id,
+      senderId: senderId,
+      receiverId: receiverId,
+      images: savedMessage.images,
+      imagesCount: savedMessage.images?.length || 0,
+      type: savedMessage.type
+    });
     
     const enrichedMessage = await this.enrichMessage(savedMessage);
+    console.log(`[ChatService] 📦 Message enrichi retourné:`, {
+      id: enrichedMessage._id || enrichedMessage.id,
+      images: enrichedMessage.images,
+      imagesCount: enrichedMessage.images?.length || 0
+    });
 
     // Envoyer une notification Firebase au destinataire
     try {
@@ -521,7 +541,20 @@ export class ChatService {
 
     console.log(`[ChatService] ${messages.length} message(s) trouvé(s) pour la visite ${visiteId}`);
 
-    return Promise.all(messages.map(msg => this.enrichMessage(msg)));
+    const enrichedMessages = await Promise.all(messages.map(msg => this.enrichMessage(msg)));
+    
+    // Log pour vérifier que les images sont bien dans les messages récupérés
+    const messagesWithImages = enrichedMessages.filter(msg => msg.images && msg.images.length > 0);
+    console.log(`[ChatService] 📸 getMessagesByVisite - ${messagesWithImages.length} message(s) avec images sur ${enrichedMessages.length} total`);
+    messagesWithImages.forEach((msg, index) => {
+      console.log(`[ChatService] 📸 Message ${index + 1} avec images:`, {
+        id: msg._id || msg.id,
+        images: msg.images,
+        imagesCount: msg.images?.length || 0
+      });
+    });
+    
+    return enrichedMessages;
   }
 
   async markAsRead(messageId: string, userId: string): Promise<any> {
@@ -654,6 +687,32 @@ export class ChatService {
   private async enrichMessage(message: MessageDocument): Promise<any> {
     const messageObj: any = message.toObject();
     
+    // S'assurer que les images sont bien incluses et nettoyer les URLs
+    if (message.images && message.images.length > 0) {
+      // Nettoyer les URLs pour enlever les espaces
+      messageObj.images = message.images.map((url: string) => {
+        if (!url) return url;
+        // Enlever tous les espaces dans l'URL
+        let cleanedUrl = url.trim();
+        // Remplacer les espaces multiples par rien
+        cleanedUrl = cleanedUrl.replace(/\s+/g, '');
+        // S'assurer qu'il n'y a pas d'espace entre "chat" et "/"
+        cleanedUrl = cleanedUrl.replace(/chat\s*\/+/g, 'chat/');
+        // S'assurer qu'il n'y a pas d'espace avant le "/"
+        cleanedUrl = cleanedUrl.replace(/\s+\//g, '/');
+        // S'assurer qu'il n'y a pas d'espace après le "/"
+        cleanedUrl = cleanedUrl.replace(/\/\s+/g, '/');
+        
+        if (cleanedUrl !== url) {
+          console.log(`[ChatService] 🔧 URL nettoyée: "${url}" -> "${cleanedUrl}"`);
+        }
+        return cleanedUrl;
+      });
+      console.log(`[ChatService] 📸 enrichMessage - Images incluses (nettoyées):`, messageObj.images);
+    } else {
+      console.log(`[ChatService] 📸 enrichMessage - Aucune image dans le message`);
+    }
+    
     try {
       const sender = await this.usersService.findById(message.senderId);
       if (sender) {
@@ -673,6 +732,13 @@ export class ChatService {
     } catch (e) {
       // Ignorer les erreurs silencieusement
     }
+
+    console.log(`[ChatService] 📦 enrichMessage - Message final:`, {
+      id: messageObj._id || messageObj.id,
+      images: messageObj.images,
+      imagesCount: messageObj.images?.length || 0,
+      type: messageObj.type
+    });
 
     return messageObj;
   }
