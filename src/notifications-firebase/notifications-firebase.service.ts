@@ -9,7 +9,7 @@ import { FirebaseNotificationResponseDto } from './dto/firebase-notification-res
 export class NotificationsFirebaseService {
   constructor(
     @Inject(FIREBASE_ADMIN) private readonly firebase: typeof admin,
-  ) {}
+  ) { }
 
   private get isConfigured(): boolean {
     try {
@@ -43,7 +43,7 @@ export class NotificationsFirebaseService {
       console.warn('[NotificationsFirebaseService] Firebase non configuré, token non enregistré');
       throw new Error('Firebase n\'est pas configuré. Vérifiez que le fichier firebase-service-account.json existe.');
     }
-    
+
     if (!fcmToken || fcmToken.trim().length === 0) {
       throw new Error('Le token FCM ne peut pas être vide');
     }
@@ -64,7 +64,7 @@ export class NotificationsFirebaseService {
         console.log(`[NotificationsFirebaseService] Document n'existe pas encore pour l'utilisateur ${userId}, création...`);
         snap = null; // On va créer le document
       }
-      
+
       // Utiliser Timestamp.now() au lieu de FieldValue.serverTimestamp() car on ne peut pas utiliser FieldValue dans un tableau
       const now = this.firebase.firestore.Timestamp.now();
 
@@ -105,7 +105,7 @@ export class NotificationsFirebaseService {
       console.error('[NotificationsFirebaseService] Code d\'erreur:', error?.code);
       console.error('[NotificationsFirebaseService] Message:', error?.message);
       console.error('[NotificationsFirebaseService] Détails:', error?.details);
-      
+
       // Si c'est une erreur NOT_FOUND, cela signifie probablement que Firestore n'est pas initialisé
       if (error?.code === 5 || error?.code === 'NOT_FOUND') {
         const errorMsg = `Firestore n'est pas initialisé ou les règles de sécurité bloquent l'écriture. 
@@ -118,7 +118,7 @@ Veuillez :
 6. Vérifier que les règles permettent l'écriture pour le compte de service`;
         throw new Error(errorMsg);
       }
-      
+
       const errorMessage = error?.message || error?.toString() || 'Erreur inconnue';
       throw new Error(`Impossible d'enregistrer le token FCM: ${errorMessage}`);
     }
@@ -178,7 +178,7 @@ Veuillez :
       createdAt: this.firebase.firestore.FieldValue.serverTimestamp(),
       sentBy,
     };
-    
+
     console.log(`[NotificationsFirebaseService] Création de la notification pour l'utilisateur ${userId}:`, {
       type,
       title,
@@ -186,7 +186,7 @@ Veuillez :
       visitId: visitId ?? null,
       housingId: housingId ?? null,
     });
-    
+
     let notificationRef;
     try {
       notificationRef = await this.firestore.collection('notifications').add(notificationData);
@@ -242,16 +242,16 @@ Veuillez :
       });
 
       console.log(`[NotificationsFirebaseService] Notification envoyée: ${response.successCount} succès, ${response.failureCount} échecs`);
-      
+
       if (response.failureCount > 0) {
         // Logger les tokens invalides pour les supprimer
         response.responses.forEach((resp, idx) => {
           if (!resp.success) {
             console.error(`[NotificationsFirebaseService] Échec d'envoi pour le token ${idx}: ${resp.error?.code} - ${resp.error?.message}`);
-            
+
             // Si le token est invalide ou non enregistré, on pourrait le supprimer
-            if (resp.error?.code === 'messaging/invalid-registration-token' || 
-                resp.error?.code === 'messaging/registration-token-not-registered') {
+            if (resp.error?.code === 'messaging/invalid-registration-token' ||
+              resp.error?.code === 'messaging/registration-token-not-registered') {
               console.warn(`[NotificationsFirebaseService] Token invalide détecté, devrait être supprimé: ${tokens[idx]?.substring(0, 20)}...`);
             }
           }
@@ -317,14 +317,16 @@ Veuillez :
     senderName: string;
     messageContent: string;
     hasImages?: boolean;
+    role?: 'CLIENT' | 'COLLECTOR';
+    sentBy?: 'CLIENT' | 'COLLECTOR';
   }): Promise<void> {
     if (!this.isConfigured) {
       return;
     }
     const title = `Nouveau message de ${params.senderName}`;
-    const body = params.hasImages 
+    const body = params.hasImages
       ? `📷 ${params.senderName} a envoyé une image${params.messageContent ? `: ${params.messageContent}` : ''}`
-      : params.messageContent.length > 50 
+      : params.messageContent.length > 50
         ? `${params.messageContent.substring(0, 50)}...`
         : params.messageContent;
 
@@ -335,6 +337,8 @@ Veuillez :
       body,
       visitId: params.visitId,
       housingId: params.housingId,
+      role: params.role || 'CLIENT', // Utiliser le paramètre ou CLIENT par défaut
+      sentBy: params.sentBy || 'COLLECTOR', // Utiliser le paramètre ou COLLECTOR par défaut
     });
   }
 
@@ -365,37 +369,37 @@ Veuillez :
       title: string;
       body: string;
     }[] = [
-      {
-        type: NotificationType.VISIT_REMINDER_J2,
-        offsetMs: -2 * msDay,
-        title: 'Rappel de visite (J-2)',
-        body: `Vous avez une visite pour ${logement} dans 2 jours.`,
-      },
-      {
-        type: NotificationType.VISIT_REMINDER_J1,
-        offsetMs: -1 * msDay,
-        title: 'Rappel de visite (J-1)',
-        body: `Vous avez une visite pour ${logement} demain.`,
-      },
-      {
-        type: NotificationType.VISIT_REMINDER_H2,
-        offsetMs: -2 * msHour,
-        title: 'Rappel de visite (H-2)',
-        body: `Vous avez une visite pour ${logement} dans 2 heures.`,
-      },
-      {
-        type: NotificationType.VISIT_REMINDER_H1,
-        offsetMs: -1 * msHour,
-        title: 'Rappel de visite (H-1)',
-        body: `Vous avez une visite pour ${logement} dans 1 heure.`,
-      },
-      {
-        type: NotificationType.VISIT_REMINDER_H30,
-        offsetMs: -ms30Min,
-        title: 'Rappel de visite (30 min)',
-        body: `Vous avez une visite pour ${logement} dans 30 minutes.`,
-      },
-    ];
+        {
+          type: NotificationType.VISIT_REMINDER_J2,
+          offsetMs: -2 * msDay,
+          title: 'Rappel de visite (J-2)',
+          body: `Vous avez une visite pour ${logement} dans 2 jours.`,
+        },
+        {
+          type: NotificationType.VISIT_REMINDER_J1,
+          offsetMs: -1 * msDay,
+          title: 'Rappel de visite (J-1)',
+          body: `Vous avez une visite pour ${logement} demain.`,
+        },
+        {
+          type: NotificationType.VISIT_REMINDER_H2,
+          offsetMs: -2 * msHour,
+          title: 'Rappel de visite (H-2)',
+          body: `Vous avez une visite pour ${logement} dans 2 heures.`,
+        },
+        {
+          type: NotificationType.VISIT_REMINDER_H1,
+          offsetMs: -1 * msHour,
+          title: 'Rappel de visite (H-1)',
+          body: `Vous avez une visite pour ${logement} dans 1 heure.`,
+        },
+        {
+          type: NotificationType.VISIT_REMINDER_H30,
+          offsetMs: -ms30Min,
+          title: 'Rappel de visite (30 min)',
+          body: `Vous avez une visite pour ${logement} dans 30 minutes.`,
+        },
+      ];
 
     // Collector reminders
     const collectorScheduleItems: {
@@ -404,37 +408,37 @@ Veuillez :
       title: string;
       body: string;
     }[] = [
-      {
-        type: NotificationType.VISIT_REMINDER_COLLECTOR_J2,
-        offsetMs: -2 * msDay,
-        title: 'Rappel de visite (J-2)',
-        body: `Vous avez une visite avec ${client} pour ${logement} dans 2 jours.`,
-      },
-      {
-        type: NotificationType.VISIT_REMINDER_COLLECTOR_J1,
-        offsetMs: -1 * msDay,
-        title: 'Rappel de visite (J-1)',
-        body: `Vous avez une visite avec ${client} pour ${logement} demain.`,
-      },
-      {
-        type: NotificationType.VISIT_REMINDER_COLLECTOR_H2,
-        offsetMs: -2 * msHour,
-        title: 'Rappel de visite (H-2)',
-        body: `Vous avez une visite avec ${client} pour ${logement} dans 2 heures.`,
-      },
-      {
-        type: NotificationType.VISIT_REMINDER_COLLECTOR_H1,
-        offsetMs: -1 * msHour,
-        title: 'Rappel de visite (H-1)',
-        body: `Vous avez une visite avec ${client} pour ${logement} dans 1 heure.`,
-      },
-      {
-        type: NotificationType.VISIT_REMINDER_COLLECTOR_H30,
-        offsetMs: -ms30Min,
-        title: 'Rappel de visite (30 min)',
-        body: `Vous avez une visite avec ${client} pour ${logement} dans 30 minutes.`,
-      },
-    ];
+        {
+          type: NotificationType.VISIT_REMINDER_COLLECTOR_J2,
+          offsetMs: -2 * msDay,
+          title: 'Rappel de visite (J-2)',
+          body: `Vous avez une visite avec ${client} pour ${logement} dans 2 jours.`,
+        },
+        {
+          type: NotificationType.VISIT_REMINDER_COLLECTOR_J1,
+          offsetMs: -1 * msDay,
+          title: 'Rappel de visite (J-1)',
+          body: `Vous avez une visite avec ${client} pour ${logement} demain.`,
+        },
+        {
+          type: NotificationType.VISIT_REMINDER_COLLECTOR_H2,
+          offsetMs: -2 * msHour,
+          title: 'Rappel de visite (H-2)',
+          body: `Vous avez une visite avec ${client} pour ${logement} dans 2 heures.`,
+        },
+        {
+          type: NotificationType.VISIT_REMINDER_COLLECTOR_H1,
+          offsetMs: -1 * msHour,
+          title: 'Rappel de visite (H-1)',
+          body: `Vous avez une visite avec ${client} pour ${logement} dans 1 heure.`,
+        },
+        {
+          type: NotificationType.VISIT_REMINDER_COLLECTOR_H30,
+          offsetMs: -ms30Min,
+          title: 'Rappel de visite (30 min)',
+          body: `Vous avez une visite avec ${client} pour ${logement} dans 30 minutes.`,
+        },
+      ];
 
     const batch = this.firestore.batch();
     const now = new Date();
@@ -489,7 +493,7 @@ Veuillez :
 
     try {
       await batch.commit();
-      
+
       // Log pour débogage
       const totalReminders = clientScheduleItems.filter(item => {
         const scheduledAt = new Date(visitDate.getTime() + item.offsetMs);
@@ -498,7 +502,7 @@ Veuillez :
         const scheduledAt = new Date(visitDate.getTime() + item.offsetMs);
         return scheduledAt > now;
       }).length : 0);
-      
+
       console.log(`[NotificationsFirebaseService] ${totalReminders} rappel(s) planifié(s) pour la visite ${visitId} (client: ${userId}, collector: ${collectorId || 'N/A'})`);
     } catch (error: any) {
       // Si c'est une erreur NOT_FOUND, essayer de créer les documents un par un
@@ -600,7 +604,7 @@ Veuillez :
             .collection('notifications-scheduled')
             .where('processed', '==', false)
             .get();
-          
+
           // Filtrer en mémoire par date
           const filteredDocs = allUnprocessed.docs.filter(doc => {
             const data = doc.data();
@@ -614,7 +618,7 @@ Veuillez :
             }
             return scheduledAt >= fiveMinutesAgo && scheduledAt <= fiveMinutesLater;
           });
-          
+
           // Créer un QuerySnapshot mock avec les documents filtrés
           snap = {
             empty: filteredDocs.length === 0,
@@ -635,7 +639,7 @@ Veuillez :
 
       for (const doc of snap.docs) {
         const data = doc.data();
-        
+
         // Convertir le Timestamp Firestore en Date si nécessaire
         let scheduledAt: Date;
         if (data.scheduledAt?.toDate) {
@@ -699,10 +703,10 @@ Veuillez :
       // - Code 9 (FAILED_PRECONDITION) : Index composite manquant
       // - Message contenant "index" : Index manquant
       const isNotFoundError = error?.code === 5 || error?.code === 'NOT_FOUND';
-      const isMissingIndexError = error?.code === 9 || 
-                                  error?.code === 'FAILED_PRECONDITION' ||
-                                  error?.message?.toLowerCase().includes('index');
-      
+      const isMissingIndexError = error?.code === 9 ||
+        error?.code === 'FAILED_PRECONDITION' ||
+        error?.message?.toLowerCase().includes('index');
+
       if (isNotFoundError || isMissingIndexError) {
         // C'est normal si aucune notification planifiée n'a encore été créée
         // ou si l'index composite n'a pas encore été créé dans Firestore
@@ -744,12 +748,12 @@ Veuillez :
 
       const notifications = snap.docs.map((d) => {
         const data = d.data();
-        const createdAt = data.createdAt?.toDate 
-          ? data.createdAt.toDate() 
-          : (data.createdAt instanceof Date 
-            ? data.createdAt 
+        const createdAt = data.createdAt?.toDate
+          ? data.createdAt.toDate()
+          : (data.createdAt instanceof Date
+            ? data.createdAt
             : new Date());
-        
+
         return {
           id: d.id,
           userId: data.userId,

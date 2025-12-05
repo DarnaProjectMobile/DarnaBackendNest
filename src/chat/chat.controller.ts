@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Patch, UseInterceptors, UploadedFiles, UploadedFile, BadRequestException, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Patch, Delete, UseInterceptors, UploadedFiles, UploadedFile, BadRequestException, UsePipes, ValidationPipe } from '@nestjs/common';
 import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
@@ -14,7 +14,7 @@ import { MarkReadDto } from './dto/mark-read.dto';
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(private readonly chatService: ChatService) { }
 
   @Post('message')
   @ApiBearerAuth('access-token')
@@ -41,11 +41,11 @@ export class ChatController {
         fileFilter: (req, file, cb) => {
           try {
             console.log(`🔍 [message] File filter - mimetype: ${file.mimetype}, originalname: ${file.originalname}`);
-            
+
             // Extraire l'extension du fichier
             const ext = file.originalname.toLowerCase().split('.').pop() || '';
             const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-            
+
             // Si pas de mimetype ou mimetype générique, vérifier l'extension
             if (!file.mimetype || file.mimetype === 'image/*' || file.mimetype === 'application/octet-stream') {
               if (validExtensions.includes(ext)) {
@@ -58,10 +58,10 @@ export class ChatController {
                 return;
               }
             }
-            
+
             // Normaliser le mimetype pour la comparaison
             const normalizedMime = file.mimetype.toLowerCase();
-            
+
             // Accepter les différents formats de mimetype d'images
             const imageMimeTypes = [
               'image/jpeg',
@@ -72,11 +72,11 @@ export class ChatController {
               'image/x-png',
               'image/pjpeg',
             ];
-            
+
             // Vérifier si le mimetype correspond à un type d'image
             const isImage = imageMimeTypes.some(mime => normalizedMime.includes(mime)) ||
-                           normalizedMime.match(/^image\/(jpeg|jpg|png|gif|webp|x-png|pjpeg)$/);
-            
+              normalizedMime.match(/^image\/(jpeg|jpg|png|gif|webp|x-png|pjpeg)$/);
+
             if (isImage) {
               console.log(`✅ [message] File type accepted: ${file.mimetype}`);
               cb(null, true);
@@ -171,7 +171,7 @@ export class ChatController {
     @CurrentUser() user: any,
   ) {
     const messages = await this.chatService.getMessagesByVisite(visiteId, user.userId);
-    
+
     // Log pour vérifier que les images sont bien dans les messages retournés
     const messagesWithImages = messages.filter((msg: any) => msg.images && msg.images.length > 0);
     console.log(`📤 [getMessages] ${messagesWithImages.length} message(s) avec images sur ${messages.length} total`);
@@ -182,7 +182,7 @@ export class ChatController {
         imagesCount: msg.images?.length || 0
       });
     });
-    
+
     return messages;
   }
 
@@ -259,11 +259,11 @@ export class ChatController {
         fileFilter: (req, file, cb) => {
           try {
             console.log(`🔍 [upload-images] File filter - mimetype: ${file.mimetype}, originalname: ${file.originalname}`);
-            
+
             // Extraire l'extension du fichier
             const ext = file.originalname.toLowerCase().split('.').pop() || '';
             const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-            
+
             // Si pas de mimetype ou mimetype générique, vérifier l'extension
             if (!file.mimetype || file.mimetype === 'image/*' || file.mimetype === 'application/octet-stream') {
               if (validExtensions.includes(ext)) {
@@ -276,10 +276,10 @@ export class ChatController {
                 return;
               }
             }
-            
+
             // Normaliser le mimetype pour la comparaison
             const normalizedMime = file.mimetype.toLowerCase();
-            
+
             // Accepter les différents formats de mimetype d'images
             const imageMimeTypes = [
               'image/jpeg',
@@ -290,11 +290,11 @@ export class ChatController {
               'image/x-png',
               'image/pjpeg',
             ];
-            
+
             // Vérifier si le mimetype correspond à un type d'image
             const isImage = imageMimeTypes.some(mime => normalizedMime.includes(mime)) ||
-                           normalizedMime.match(/^image\/(jpeg|jpg|png|gif|webp|x-png|pjpeg)$/);
-            
+              normalizedMime.match(/^image\/(jpeg|jpg|png|gif|webp|x-png|pjpeg)$/);
+
             if (isImage) {
               console.log(`✅ [upload-images] File type accepted: ${file.mimetype}`);
               cb(null, true);
@@ -330,29 +330,29 @@ export class ChatController {
     console.log('📤 Upload images - User:', user?.userId);
     console.log('📤 Upload images - Body:', body);
     console.log('📤 Upload images - Files received:', files ? Object.keys(files) : 'null');
-    
+
     // Vérifier que l'utilisateur est authentifié
     if (!user || !user.userId) {
       console.error('❌ User not authenticated');
       throw new BadRequestException('Utilisateur non authentifié');
     }
-    
+
     if (!files) {
       console.error('❌ No files object in request');
       throw new BadRequestException('Aucun fichier reçu dans la requête');
     }
-    
+
     if (!files.images || files.images.length === 0) {
       console.error('❌ No images provided in upload');
       console.error('❌ Files object keys:', Object.keys(files));
       throw new BadRequestException('Aucune image fournie. Assurez-vous d\'envoyer les fichiers avec le nom de champ "images"');
     }
-    
+
     console.log(`✅ ${files.images.length} image(s) received for user ${user.userId}`);
     files.images.forEach((file, index) => {
       console.log(`  Image ${index + 1}: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
     });
-    
+
     const imageUrls = files.images.map(file => {
       // Nettoyer le filename pour enlever les espaces
       const cleanFilename = file.filename.trim().replace(/\s+/g, '-');
@@ -362,7 +362,66 @@ export class ChatController {
     });
     return { images: imageUrls };
   }
+
+  // Nouveaux endpoints pour suppression, modification et statuts
+
+  @Delete('message/:messageId')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Supprimer un message (soft delete)' })
+  @ApiParam({ name: 'messageId', description: 'ID du message à supprimer' })
+  @ApiResponse({ status: 200, description: 'Message supprimé avec succès' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - vous ne pouvez supprimer que vos propres messages' })
+  @ApiResponse({ status: 404, description: 'Message non trouvé' })
+  async deleteMessage(
+    @Param('messageId') messageId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.chatService.deleteMessage(messageId, user.userId);
+  }
+
+  @Patch('message/:messageId')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Modifier le contenu d\'un message' })
+  @ApiParam({ name: 'messageId', description: 'ID du message à modifier' })
+  @ApiResponse({ status: 200, description: 'Message modifié avec succès' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - vous ne pouvez modifier que vos propres messages texte' })
+  @ApiResponse({ status: 404, description: 'Message non trouvé' })
+  async updateMessage(
+    @Param('messageId') messageId: string,
+    @Body() updateMessageDto: { content: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.chatService.updateMessage(messageId, updateMessageDto.content, user.userId);
+  }
+
+  @Patch('message/:messageId/status')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Mettre à jour le statut d\'un message (sent, delivered, read)' })
+  @ApiParam({ name: 'messageId', description: 'ID du message' })
+  @ApiResponse({ status: 200, description: 'Statut mis à jour avec succès' })
+  @ApiResponse({ status: 403, description: 'Accès refusé - vous ne pouvez mettre à jour que le statut des messages reçus' })
+  @ApiResponse({ status: 404, description: 'Message non trouvé' })
+  async updateMessageStatus(
+    @Param('messageId') messageId: string,
+    @Body() updateStatusDto: { status: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.chatService.updateMessageStatus(messageId, updateStatusDto.status, user.userId);
+  }
+
+  @Post('message/:messageId/reaction')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Ajouter ou retirer une réaction' })
+  @ApiParam({ name: 'messageId', description: 'ID du message' })
+  async toggleReaction(
+    @Param('messageId') messageId: string,
+    @Body() toggleReactionDto: { emoji: string },
+    @CurrentUser() user: any,
+  ) {
+    return this.chatService.toggleReaction(messageId, toggleReactionDto.emoji, user.userId);
+  }
 }
+
 
 
 
