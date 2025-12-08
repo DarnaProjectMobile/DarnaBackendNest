@@ -41,6 +41,8 @@ async function bootstrap() {
         join(__dirname, '..', 'uploads', 'chat'),
         join(__dirname, '..', 'uploads', 'visites'),
         join(__dirname, '..', 'uploads', 'visites', 'confirmation'),
+        join(__dirname, '..', 'uploads', 'annonces'),
+        join(__dirname, '..', 'uploads', 'logement'),
     ];
 
     uploadDirs.forEach(dir => {

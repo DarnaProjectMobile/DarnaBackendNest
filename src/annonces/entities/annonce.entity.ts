@@ -13,19 +13,7 @@ export class Annonce {
   @Prop({ required: true })
   description: string;
 
-  @Prop({ required: true })
-  price: number;
-
-  @Prop({ required: true })
-  location: string;
-
-  @Prop({ required: true, type: Number })
-  nbrCollocateurMax: number;
-
-  @Prop({ required: true, type: Number, default: 0 })
-  nbrCollocateurActuel: number;
-
-  @Prop({ type: [String], required: true })
+  @Prop({ required: true, type: [String], default: [] })
   images: string[];
 
   @Prop({
@@ -35,15 +23,27 @@ export class Annonce {
   type: string;
 
   @Prop({ required: true })
+  location: string;
+
+  @Prop({ required: true, type: Number })
+  price: number;
+
+  @Prop({ required: true, type: Number })
+  nbrCollocateurMax: number;
+
+  @Prop({ required: true, type: Number, default: 0 })
+  nbrCollocateurActuel: number;
+
+  // ❗ Mongoose MUST define date props using @Prop
+  @Prop({ type: Date, required: true })
   startDate: Date;
 
-  @Prop({ required: true })
+  @Prop({ type: Date, required: true })
   endDate: Date;
 
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   user: Types.ObjectId;
 
-  // ✅ Booking list
   @Prop({
     type: [
       {
@@ -52,7 +52,7 @@ export class Annonce {
       },
     ],
     default: [],
-    _id: true, // make subdocuments have _id
+    _id: true,
   })
   bookings: {
     _id: Types.ObjectId;
@@ -60,7 +60,6 @@ export class Annonce {
     bookingStartDate: Date;
   }[];
 
-  // ✅ Attending list (pending bookings)
   @Prop({
     type: [
       {

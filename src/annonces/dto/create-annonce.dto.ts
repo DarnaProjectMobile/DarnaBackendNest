@@ -6,7 +6,7 @@ import {
   IsString,
   IsDateString,
   IsArray,
-  ArrayMinSize,
+  IsOptional,
 } from "class-validator";
 
 export class CreateAnnonceDto {
@@ -15,26 +15,30 @@ export class CreateAnnonceDto {
   @IsNotEmpty()
   title: string;
 
-  @ApiProperty({ description: "Description of the property", example: "A beautiful villa located in Ariana." })
+  @ApiProperty({
+    description: "Description of the property",
+    example: "A beautiful villa located in Ariana."
+  })
   @IsString()
   @IsNotEmpty()
   description: string;
 
   @ApiProperty({
-    description: "List of image URLs",
+    description: "List of image URLs (populated by server after upload)",
     type: [String],
-    example: ["http://example.com/img1.jpg", "http://example.com/img2.jpg"]
+    example: ["/uploads/annonces/filename1.jpg", "/uploads/annonces/filename2.jpg"]
   })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
-  images: string[];
+  @IsString({ each: true })
+  images?: string[];
 
   @ApiProperty({
     description: "Type of property",
-    enum: ['S', 'S+1', 'S+2', 'S+3', 'S+4', 'Chambre'],
+    enum: ["S", "S+1", "S+2", "S+3", "S+4", "Chambre"],
     example: "S+3"
   })
-  @IsEnum(['S', 'S+1', 'S+2', 'S+3', 'S+4', 'Chambre'])
+  @IsEnum(["S", "S+1", "S+2", "S+3", "S+4", "Chambre"])
   type: string;
 
   @ApiProperty({ description: "Location city & area", example: "Ariana, Tunis" })
@@ -54,11 +58,17 @@ export class CreateAnnonceDto {
   @IsNumber()
   nbrCollocateurActuel: number;
 
-  @ApiProperty({ description: "Start date", example: "2024-07-01T00:00:00.000Z" })
+  @ApiProperty({
+    description: "Start date (ISO 8601)",
+    example: "2024-07-01T00:00:00.000Z"
+  })
   @IsDateString()
-  startDate: Date;
+  startDate: string;  // ← FIXED (was Date)
 
-  @ApiProperty({ description: "End date", example: "2024-12-31T00:00:00.000Z" })
+  @ApiProperty({
+    description: "End date (ISO 8601)",
+    example: "2024-12-31T00:00:00.000Z"
+  })
   @IsDateString()
-  endDate: Date;
+  endDate: string;  // ← FIXED (was Date)
 }
