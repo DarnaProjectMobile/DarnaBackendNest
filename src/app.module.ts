@@ -19,6 +19,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsFirebaseModule } from './notifications-firebase/notifications-firebase.module';
 import { ChatModule } from './chat/chat.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { UploadsModule } from './uploads/uploads.module';
     NotificationsFirebaseModule,
     ChatModule,
     UploadsModule,
+    AdminModule,
   ],
 })
 export class AppModule { }
