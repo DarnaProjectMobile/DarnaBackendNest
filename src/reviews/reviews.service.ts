@@ -119,7 +119,7 @@ export class ReviewsService {
     return this.formatReviewResponse(savedReview);
   }
 
-  async findAll(propertyId?: string, userId?: string) {
+  async findAll(propertyId?: string, userId?: string, collectorId?: string) {
     let query: any = {};
 
     // Validate ObjectId formats if provided
@@ -131,6 +131,10 @@ export class ReviewsService {
       throw new BadRequestException(`Invalid user ID format: ${userId}`);
     }
 
+    if (collectorId && !isValidObjectId(collectorId)) {
+      throw new BadRequestException(`Invalid collector ID format: ${collectorId}`);
+    }
+
     if (propertyId) {
       query.property = propertyId;
     }
@@ -139,8 +143,13 @@ export class ReviewsService {
       query.user = userId;
     }
 
+    if (collectorId) {
+      query.collectorId = collectorId;
+    }
+
     const reviews = await this.reviewModel
       .find(query)
+      .sort({ createdAt: -1 }) // Trier par date décroissante
       .populate('user', 'username email')
       .populate('property', 'title');
 
@@ -195,8 +204,42 @@ export class ReviewsService {
     if (!isValidObjectId(visiteId)) {
       throw new BadRequestException(`Invalid visite ID format: ${visiteId}`);
     }
-    const reviews = await this.reviewModel.find({ visiteId }).populate('user', 'username email');
+
+    // Essayer de trouver avec l'ID string (mongoose devrait caster)
+    // Mais on ajoute un fallback explicite au cas où
+    let query: any = { visiteId };
+
+    // console.log(`[ReviewsService] findByVisiteId searching for: ${visiteId}`);
+
+    const reviews = await this.reviewModel.find(query)
+      .populate('user', 'username email')
+      .exec();
+
+    // console.log(`[ReviewsService] Found ${reviews.length} reviews for visite ${visiteId}`);
+
     return reviews.map(review => this.formatReviewResponse(review));
+  }
+
+  // MÉTHODE DE SECOURS : Trouver une review par couple User + Logement
+  // Utilisé quand le lien visiteId est manquant ou cassé
+  async findFallbackReview(userId: string, logementId: string): Promise<any | null> {
+    if (!userId || !logementId) return null;
+
+    // On cherche une review faite par cet utilisateur sur ce logement
+    const query: any = {
+      user: userId,
+      $or: [
+        { logementId: logementId },
+      ]
+    };
+
+    if (isValidObjectId(logementId)) {
+      query.$or.push({ property: logementId });
+    }
+
+    // Prendre la plus récente
+    const review = await this.reviewModel.findOne(query).sort({ createdAt: -1 }).exec();
+    return review ? this.formatReviewResponse(review) : null;
   }
 
   // Méthode utilitaire pour formater les réponses

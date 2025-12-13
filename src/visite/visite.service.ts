@@ -270,6 +270,30 @@ export class VisiteService {
         }
       }
 
+      // AUTO-HEALING: Si reviewId manque, essayer de le trouver (pour les anciennes données)
+      if (!visiteObj.reviewId && visite.status === 'completed') {
+        try {
+          // Utiliser visite._id d'abord, sinon userId+logementId via findFallbackReview
+          // Mais findFallbackReview gère déjà userId+logementId
+          // D'abord on vérifie si une review existe pour cette visiteId spécifique
+          const reviews = await this.reviewsService.findByVisiteId(visite._id.toString());
+          if (reviews && reviews.length > 0) {
+            visiteObj.reviewId = reviews[0].id; // reviews[0] est formaté
+          } else {
+            // Sinon fallback fuzzy
+            const fallback = await this.reviewsService.findFallbackReview(
+              visite.userId,
+              visite.logementId
+            );
+            if (fallback) {
+              visiteObj.reviewId = fallback.id;
+            }
+          }
+        } catch (e) {
+          // Silent fail
+        }
+      }
+
       return visiteObj;
     }));
   }

@@ -21,7 +21,7 @@ import { AuthGuard } from '@nestjs/passport';
 @UseGuards(AuthGuard('jwt'))
 @Controller('reviews')
 export class ReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) {}
+  constructor(private readonly reviewsService: ReviewsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new review' })
@@ -34,9 +34,14 @@ export class ReviewsController {
   @Get()
   @ApiOperation({ summary: 'Get all reviews with optional filtering' })
   @ApiQuery({ name: 'property', required: false, description: 'Filter by property ID' })
-  @ApiQuery({ name: 'user', required: false, description: 'Filter by user ID' })
-  async findAll(@Query('property') property?: string, @Query('user') user?: string) {
-    const result = await this.reviewsService.findAll(property, user);
+  @ApiQuery({ name: 'user', required: false, description: 'Filter by user ID (creator)' })
+  @ApiQuery({ name: 'collector', required: false, description: 'Filter by collector ID (receiver)' })
+  async findAll(
+    @Query('property') property?: string,
+    @Query('user') user?: string,
+    @Query('collector') collector?: string
+  ) {
+    const result = await this.reviewsService.findAll(property, user, collector);
     return result;
   }
 
