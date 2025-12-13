@@ -12,6 +12,9 @@ import { Annonce, AnnonceDocument } from './entities/annonce.entity';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
 import { BookAnnonceDto } from './dto/book-annonce.dto';
 import { NotificationService } from 'src/notification/notification.service';
+import { ImageVerificationService } from './image-verification.service';
+import { unlink } from 'fs/promises';
+import { join } from 'path';
 
 @Injectable()
 export class AnnoncesService {
@@ -23,6 +26,7 @@ export class AnnoncesService {
     private readonly userModel: Model<UserDocument>,
 
     private readonly notificationService: NotificationService,
+    private readonly imageVerificationService: ImageVerificationService,
   ) {}
 
   async create(createAnnonceDto: CreateAnnonceDto, userPayload: any): Promise<Annonce> {
@@ -39,6 +43,64 @@ export class AnnoncesService {
 
     const annonce = new this.annonceModel({
       ...createAnnonceDto,
+      user: new Types.ObjectId(user._id),
+    });
+
+    return annonce.save();
+  }
+
+  /**
+   * Create annonce with image verification
+   * Verifies that uploaded images are house-related before saving
+   */
+  async createWithImageVerification(
+    createAnnonceDto: CreateAnnonceDto,
+    files: Express.Multer.File[],
+    userPayload: any,
+  ): Promise<Annonce> {
+    const user = await this.userModel.findById(userPayload.userId);
+    if (!user) throw new ForbiddenException('Authenticated user not found');
+
+    if (user.role !== 'collocator') {
+      throw new ForbiddenException('Only Collocators can create annonces');
+    }
+
+    if (new Date(createAnnonceDto.startDate) >= new Date(createAnnonceDto.endDate)) {
+      throw new BadRequestException('startDate must be earlier than endDate');
+    }
+
+    // Verify all uploaded images
+    const imagePaths = files.map((file) => file.path);
+    const verificationResults = await this.imageVerificationService.verifyHouseImages(imagePaths);
+
+    // Check which images failed verification
+    const failedImages: string[] = [];
+    verificationResults.forEach((isValid, index) => {
+      if (!isValid) {
+        failedImages.push(files[index].originalname);
+      }
+    });
+
+    // If any images failed, delete all uploaded files and throw error
+    if (failedImages.length > 0) {
+      // Clean up uploaded files
+      await Promise.all(
+        imagePaths.map((path) =>
+          unlink(path).catch((err) => console.error(`Failed to delete file ${path}:`, err)),
+        ),
+      );
+
+      throw new BadRequestException(
+        `The following images are not house-related: ${failedImages.join(', ')}. Please upload images of house interiors or exteriors only.`,
+      );
+    }
+
+    // All images are valid, create annonce with image filenames
+    const imageUrls = files.map((file) => file.filename);
+
+    const annonce = new this.annonceModel({
+      ...createAnnonceDto,
+      images: imageUrls,
       user: new Types.ObjectId(user._id),
     });
 
