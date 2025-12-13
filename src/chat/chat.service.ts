@@ -694,8 +694,8 @@ export class ChatService {
     }
   }
 
-  private async enrichMessage(message: MessageDocument): Promise<any> {
-    const messageObj: any = message.toObject();
+  private async enrichMessage(message: MessageDocument | any): Promise<any> {
+    const messageObj: any = (message && typeof message.toObject === 'function') ? message.toObject() : message;
 
     // S'assurer que les images sont bien incluses et nettoyer les URLs
     if (message.images && message.images.length > 0) {
@@ -856,60 +856,66 @@ export class ChatService {
   }
 
   async toggleReaction(messageId: string, emoji: string, userId: string): Promise<any> {
-    const message = await this.messageModel.findById(messageId).exec();
+    // Lecture optimisée (lean) pour déterminer l'état actuel et la direction du toggle
+    const message = await this.messageModel.findById(messageId).lean().exec();
 
     if (!message) {
       throw new NotFoundException('Message non trouvé');
     }
 
-    // Initialisation robuste
-    if (!message.reactions) {
-      message.reactions = {};
-    }
-
-    // Clonage de l'objet réactions pour forcer la détection de changement par Mongoose
-    const reactions = { ...message.reactions };
-    const currentReactions = reactions[emoji] || [];
-
-    // Nettoyage de l'ID utilisateur (trim)
     const cleanUserId = String(userId).trim();
 
-    // Vérifier si l'utilisateur a déjà réagi (comparaison robuste)
-    const userIndex = currentReactions.findIndex(id => String(id).trim() === cleanUserId);
+    // Casting sécurisé des réactions
+    const reactions = (message.reactions as Record<string, string[]>) || {};
+    const currentReactions = reactions[emoji] || [];
 
-    if (userIndex > -1) {
-      // Retirer la réaction
-      currentReactions.splice(userIndex, 1);
-      if (currentReactions.length === 0) {
-        delete reactions[emoji];
-      } else {
-        reactions[emoji] = currentReactions;
-      }
-      console.log(`[ChatService] ➖ Réaction ${emoji} retirée par ${cleanUserId}`);
+    // Vérifier si l'utilisateur a déjà réagi (comparaison string et trim pour robustesse)
+    const hasReacted = currentReactions.some(id => String(id).trim() === cleanUserId);
+
+    let updatedMessage;
+
+    if (hasReacted) {
+      // RETIRER la réaction (Atomic $pull)
+      // Note: On utilise le chemin dynamique `reactions.${emoji}`
+      updatedMessage = await this.messageModel.findByIdAndUpdate(
+        messageId,
+        {
+          $pull: { [`reactions.${emoji}`]: cleanUserId }
+        },
+        { new: true } // Retourner le document mis à jour
+      ).exec();
+
+      console.log(`[ChatService] ➖ Réaction ${emoji} retirée par ${cleanUserId} (Atomic)`);
     } else {
-      // Ajouter la réaction
-      reactions[emoji] = [...currentReactions, cleanUserId];
-      console.log(`[ChatService] ➕ Réaction ${emoji} ajoutée par ${cleanUserId}`);
+      // AJOUTER la réaction (Atomic $addToSet pour éviter les doublons automatiquement)
+      updatedMessage = await this.messageModel.findByIdAndUpdate(
+        messageId,
+        {
+          $addToSet: { [`reactions.${emoji}`]: cleanUserId }
+        },
+        { new: true } // Retourner le document mis à jour
+      ).exec();
+
+      console.log(`[ChatService] ➕ Réaction ${emoji} ajoutée par ${cleanUserId} (Atomic)`);
 
       // ENVOYER NOTIFICATION (Seulement lors de l'ajout)
       // On notifie l'auteur du message s'il n'est pas celui qui réagit
-      if (message.senderId !== cleanUserId) {
-        this.sendReactionNotification(message, emoji, cleanUserId).catch(err =>
+      const senderIdStr = String(updatedMessage.senderId).trim();
+      if (senderIdStr !== cleanUserId) {
+        this.sendReactionNotification(updatedMessage, emoji, cleanUserId).catch(err =>
           console.error('[ChatService] ❌ Erreur notification réaction:', err)
         );
       }
     }
 
-    // Réassignation FORCE le changement dans Mongoose
-    message.reactions = reactions;
+    if (!updatedMessage) {
+      // Cas théoriquement impossible si le message existait au début, sauf suppression concurrente
+      throw new NotFoundException('Message non trouvé lors de la mise à jour');
+    }
 
-    // Marquer explicitement comme modifié
-    message.markModified('reactions');
+    console.log(`[ChatService] 💾 Message sauvegardé avec réactions:`, JSON.stringify(updatedMessage.reactions));
 
-    const savedMessage = await message.save();
-    console.log(`[ChatService] 💾 Message sauvegardé avec réactions:`, JSON.stringify(savedMessage.reactions));
-
-    return this.enrichMessage(savedMessage);
+    return this.enrichMessage(updatedMessage);
   }
 
   /**

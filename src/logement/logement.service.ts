@@ -9,7 +9,7 @@ import { UpdateLogementDto } from './dto/update-logement.dto';
 export class LogementService {
   constructor(
     @InjectModel(Logement.name) private logementModel: Model<LogementDocument>,
-  ) {}
+  ) { }
 
   async create(createLogementDto: CreateLogementDto, ownerId: string): Promise<Logement> {
     // Vérifier si un logement avec cet annonceId existe déjà
@@ -43,6 +43,10 @@ export class LogementService {
       throw new NotFoundException(`Logement with annonceId ${annonceId} not found`);
     }
     return logement;
+  }
+
+  async findByTitle(title: string): Promise<Logement | null> {
+    return this.logementModel.findOne({ title }).exec();
   }
 
   async findByOwnerId(ownerId: string): Promise<Logement[]> {

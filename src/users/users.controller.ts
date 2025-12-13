@@ -8,6 +8,7 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  Param,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -24,11 +25,16 @@ import { ForgotPasswordDto } from '../mail/dto/forgot-password.dto';
 import { ResetPasswordDto } from '../mail/dto/reset-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { DeviceTokenDto } from './dto/device-token.dto';
+import { AvailabilityService } from '../availability/availability.service';
+import { UpdateAvailabilityDto } from '../availability/dto/availability.dto';
 
 @ApiTags('User')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly availabilityService: AvailabilityService,
+  ) { }
 
   // 👑 Admin only: Get all users
   @Get()
@@ -104,5 +110,20 @@ export class UsersController {
       body.newPassword,
       body.confirmPassword,
     );
+  }
+
+  @Get(':ownerId/availability')
+  @UseGuards(JwtAuthGuard)
+  async getAvailability(@Param('ownerId') ownerId: string) {
+    return this.availabilityService.getAvailability(ownerId);
+  }
+
+  @Post('me/availability')
+  @UseGuards(JwtAuthGuard)
+  async updateAvailability(
+    @CurrentUser() user: any,
+    @Body() body: UpdateAvailabilityDto,
+  ) {
+    return this.availabilityService.updateAvailability(user.userId, body);
   }
 }

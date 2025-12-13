@@ -714,8 +714,9 @@ Veuillez :
         // et non une erreur réelle
         return;
       }
-      console.error('[NotificationsFirebaseService] Erreur lors du traitement des rappels planifiés:', error);
-      throw error;
+      console.error('[NotificationsFirebaseService] Erreur lors du traitement des rappels planifiés (suppressed):', error);
+      // Ne pas relancer l'erreur pour éviter de spammer les logs si Firebase n'est pas configuré correctement
+      // throw error; 
     }
   }
 

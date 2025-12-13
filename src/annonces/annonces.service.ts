@@ -61,6 +61,10 @@ export class AnnoncesService {
     return annonce;
   }
 
+  async findByUser(userId: string): Promise<Annonce[]> {
+    return this.annonceModel.find({ user: userId }).exec();
+  }
+
   async update(id: string, dto: UpdateAnnonceDto, userPayload: any): Promise<Annonce> {
     const annonce = await this.annonceModel.findById(id);
     if (!annonce) throw new NotFoundException(`Annonce #${id} not found`);

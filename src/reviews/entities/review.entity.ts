@@ -8,16 +8,16 @@ export class Review extends Document {
   @Prop({ required: true, min: 1, max: 5 })
   rating: number;
 
-  @ApiProperty({ example: 'Excellent service!', description: 'Review comment' })
-  @Prop({ required: true })
+  @ApiProperty({ example: 'Excellent service!', description: 'Review comment', required: false })
+  @Prop({ required: false })
   comment: string;
 
   @ApiProperty({ description: 'User who submitted the review' })
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   user: Types.ObjectId;
 
-  @ApiProperty({ description: 'Property being reviewed' })
-  @Prop({ type: Types.ObjectId, ref: 'Annonce', required: true })
+  @ApiProperty({ description: 'Property being reviewed', required: false })
+  @Prop({ type: Types.ObjectId, ref: 'Annonce', required: false })
   property: Types.ObjectId;
 
   @ApiProperty({ description: 'Visit associated with the review', required: false })
@@ -31,6 +31,22 @@ export class Review extends Document {
   @ApiProperty({ description: 'Logement ID', required: false })
   @Prop({ type: String, required: false }) // String car peut être un ID d'annonce ou autre
   logementId: string;
+
+  @ApiProperty({ description: 'Collector Rating', required: false })
+  @Prop({ required: false })
+  collectorRating: number;
+
+  @ApiProperty({ description: 'Cleanliness Rating', required: false })
+  @Prop({ required: false })
+  cleanlinessRating: number;
+
+  @ApiProperty({ description: 'Location Rating', required: false })
+  @Prop({ required: false })
+  locationRating: number;
+
+  @ApiProperty({ description: 'Conformity Rating', required: false })
+  @Prop({ required: false })
+  conformityRating: number;
 
   @ApiProperty({ description: 'Name of the user who submitted the review' })
   @Prop({ required: true })

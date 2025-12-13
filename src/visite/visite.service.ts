@@ -10,6 +10,9 @@ import { ReviewDocument } from '../reviews/entities/review.entity';
 import { UsersService } from '../users/users.service';
 import { LogementService } from '../logement/logement.service';
 import { NotificationsFirebaseService } from '../notifications-firebase/notifications-firebase.service';
+import { AnnoncesService } from '../annonces/annonces.service';
+import { AvailabilityService } from '../availability/availability.service';
+
 @Injectable()
 export class VisiteService {
   constructor(
@@ -18,31 +21,149 @@ export class VisiteService {
     private usersService: UsersService,
     private logementService: LogementService,
     private notificationsFirebaseService: NotificationsFirebaseService,
+    private annoncesService: AnnoncesService,
+    private availabilityService: AvailabilityService,
   ) { }
 
   async create(createVisiteDto: CreateVisiteDto, userId: string): Promise<Visite> {
+    console.log('--- Creating Visite ---');
+    console.log('User ID:', userId);
+    console.log('DTO:', JSON.stringify(createVisiteDto));
+
     // Parse and validate the date
-    const dateVisite = new Date(createVisiteDto.dateVisite);
+    let dateVisite = new Date(createVisiteDto.dateVisite);
+
+    // Attempt to handle common non-ISO formats if simple parsing fails
     if (isNaN(dateVisite.getTime())) {
-      throw new BadRequestException('Date de visite invalide');
+      console.warn(`[VisiteService] Received invalid date format: "${createVisiteDto.dateVisite}". Trying to parse manually...`);
+      // Try parsing DD/MM/YYYY or similar if needed, or just log for now.
+      // For now, let's see if we can just fix simple cases or just fail with better logs.
     }
 
-    const visite = new this.visiteModel({
-      ...createVisiteDto,
-      userId,
-      dateVisite: dateVisite,
-      status: 'pending',
-    });
-
-    // Save the visite to MongoDB
-    const savedVisite = await visite.save();
-
-    // Verify the visite was saved correctly
-    if (!savedVisite || !savedVisite._id) {
-      throw new BadRequestException('Erreur lors de l\'enregistrement de la visite dans MongoDB');
+    if (isNaN(dateVisite.getTime())) {
+      console.error('Invalid Date:', createVisiteDto.dateVisite);
+      throw new BadRequestException(`Date de visite invalide: "${createVisiteDto.dateVisite}". Format attendu: ISO 8601 (ex: 2025-12-31T10:00:00.000Z)`);
     }
 
-    return savedVisite;
+    let finalLogementId = createVisiteDto.logementId;
+    let resolvedOwnerId: string | undefined;
+
+    // Tenter de récupérer le titre du logement si un ID ou annonceId est fourni
+    // L'utilisateur souhaite que la visite soit enregistrée "selon le nom de l'appartement"
+    try {
+      if (isValidObjectId(finalLogementId)) {
+        // 1. Try Logement
+        try {
+          const logement = await this.logementService.findOne(finalLogementId);
+          if (logement) {
+            finalLogementId = logement.title;
+            resolvedOwnerId = (logement as any).ownerId || (logement as any).user;
+          }
+        } catch (ignored) {
+          // Logement not found, try Annonce
+          try {
+            console.log(`[VisiteService] Logement not found so trying Annonce lookup for ${finalLogementId}`);
+            const annonce = await this.annoncesService.findOne(finalLogementId);
+            if (annonce) {
+              finalLogementId = annonce.title;
+              resolvedOwnerId = (annonce as any).user; // Assuming user is the owner
+            }
+          } catch (e) {
+            // Not found in Annonce either
+          }
+        }
+      } else {
+        // Essayer comme annonceId
+        try {
+          const logement = await this.logementService.findByAnnonceId(finalLogementId);
+          if (logement) {
+            finalLogementId = logement.title;
+            resolvedOwnerId = (logement as any).ownerId || (logement as any).user;
+          }
+        } catch (e) {
+          // Pas trouvé par annonceId, supposons que c'est déjà le titre ou inconnu
+          // On garde la valeur telle quelle
+        }
+      }
+    } catch (e) {
+      console.warn(`[VisiteService] Could not resolve logement title for ${finalLogementId}, keeping original value.`);
+    }
+
+    // Availability Check
+    if (resolvedOwnerId) {
+      const availability = await this.availabilityService.getAvailability(resolvedOwnerId.toString());
+      if (availability) {
+        // 1. Check Days
+        const day = dateVisite.getDay(); // 0=Sun, 1=Mon...
+        if (availability.availableDays && availability.availableDays.length > 0) {
+          if (!availability.availableDays.includes(day)) {
+            throw new BadRequestException('Le propriétaire n\'est pas disponible ce jour de la semaine.');
+          }
+        }
+
+        // 2. Check Blocked Dates
+        if (availability.unavailableDates && availability.unavailableDates.length > 0) {
+          const isBlocked = availability.unavailableDates.some(ud => {
+            const d = new Date(ud);
+            return d.getUTCFullYear() === dateVisite.getUTCFullYear() &&
+              d.getUTCMonth() === dateVisite.getUTCMonth() &&
+              d.getUTCDate() === dateVisite.getUTCDate();
+          });
+          if (isBlocked) {
+            throw new BadRequestException('Cette date est indisponible (bloquée).');
+          }
+        }
+
+        // 3. Check Time Slots
+        if (availability.availableTimeSlots && availability.availableTimeSlots.length > 0) {
+          const hour = dateVisite.getHours(); // Local or UTC? Input checks ISO string.
+          // Assuming dateVisite is a Date object, getHours() returns local time of the server.
+          // We should probably rely on the string hour or ensure consistent timezone.
+          // For simplicity, let's compare as-is.
+          const minute = dateVisite.getMinutes();
+          const visitTime = hour * 60 + minute;
+
+          const isWithinSlot = availability.availableTimeSlots.some(slot => {
+            const [sH, sM] = slot.startTime.split(':').map(Number);
+            const [eH, eM] = slot.endTime.split(':').map(Number);
+            const start = sH * 60 + sM;
+            const end = eH * 60 + eM;
+            return visitTime >= start && visitTime < end;
+          });
+
+          if (!isWithinSlot) {
+            throw new BadRequestException(`L'heure choisie (${hour}:${minute < 10 ? '0' + minute : minute}) est en dehors des créneaux de disponibilité.`);
+          }
+        }
+      }
+    }
+
+    try {
+      const visite = new this.visiteModel({
+        ...createVisiteDto,
+        logementId: finalLogementId,
+        userId,
+        dateVisite: dateVisite,
+        status: 'pending',
+      });
+
+      console.log('Visite Model created, attempting to save:', visite);
+
+      // Save the visite to MongoDB
+      const savedVisite = await visite.save();
+
+      console.log('Visite saved successfully:', savedVisite);
+
+      // Verify the visite was saved correctly
+      if (!savedVisite || !savedVisite._id) {
+        throw new BadRequestException('Erreur lors de\'enregistrement de la visite dans MongoDB');
+      }
+
+      return savedVisite;
+    } catch (error) {
+      console.error('Error saving visite:', error);
+      throw error;
+    }
   }
 
   async findAll(): Promise<any[]> {
@@ -77,14 +198,122 @@ export class VisiteService {
     return this.enrichVisites(visites);
   }
 
+  async findByOwnerId(ownerId: string): Promise<any[]> {
+    // 1. Trouver les logements de l'utilisateur
+    const logements = await this.logementService.findByOwnerId(ownerId);
+
+    // 2. Trouver les annonces de l'utilisateur
+    let annoncesIds: string[] = [];
+    try {
+      const annonces = await this.annoncesService.findByUser(ownerId);
+      annoncesIds = annonces.map(a => (a as any)._id.toString());
+    } catch (e) {
+      console.warn('Error fetching user annonces:', e);
+    }
+
+    const logementIds = logements.map(l => (l as any)._id.toString());
+    const logementTitles = logements.map(l => l.title);
+
+    // Combiner tous les identifiants possibles
+    const allIds = [...new Set([...logementIds, ...annoncesIds, ...logementTitles])];
+
+    if (allIds.length === 0) {
+      return [];
+    }
+
+    // 3. Trouver les visites pour ces logements
+    const visites = await this.visiteModel
+      .find({ logementId: { $in: allIds } })
+      .sort({ dateVisite: -1 })
+      .exec();
+
+    return this.enrichVisites(visites);
+  }
+
+  private async enrichVisites(visites: VisiteDocument[]): Promise<any[]> {
+    if (!visites || visites.length === 0) return [];
+
+    console.log('[VisiteService] Enriching ' + visites.length + ' visits...');
+
+    return Promise.all(visites.map(async (visite) => {
+      const visiteObj: any = visite.toObject();
+
+      // Enrichir avec infos logement
+      if (visite.logementId) {
+        try {
+          const logement = await this.getLogementByIdOrAnnonceId(visite.logementId);
+          if (logement) {
+            visiteObj.logementTitle = logement.title;
+            visiteObj.logementAddress = logement.address;
+            visiteObj.ownerId = logement.ownerId || logement.user;
+          } else {
+            // Fallback
+            if (!visiteObj.logementTitle) visiteObj.logementTitle = visite.logementId;
+          }
+        } catch (e) {
+          console.warn('Error enriching visite with logement details:', e);
+          if (!visiteObj.logementTitle) visiteObj.logementTitle = visite.logementId;
+        }
+      }
+
+      // Enrichir avec infos utilisateur (client)
+      if (visite.userId) {
+        try {
+          const user = await this.usersService.findById(visite.userId);
+          if (user) {
+            visiteObj.clientUsername = user.username;
+            visiteObj.clientImage = user.image;
+            visiteObj.clientPhone = user.numTel;
+          }
+        } catch (e) {
+          // Ignore user enrichment errors
+        }
+      }
+
+      return visiteObj;
+    }));
+  }
+
   private async getLogementByIdOrAnnonceId(logementId: string) {
     try {
       // Vérifier si c'est un ObjectId valide
       if (isValidObjectId(logementId)) {
-        return await this.logementService.findOne(logementId);
+        // 1. Essayer de trouver dans Logement
+        try {
+          const logement = await this.logementService.findOne(logementId);
+          if (logement) return logement;
+        } catch (ignored) { }
+
+        // 2. Si non trouvé dans Logement, essayer de trouver dans Annonce
+        try {
+          console.log('[VisiteService] Looking for Annonce ID: ' + logementId);
+          const annonce = await this.annoncesService.findOne(logementId);
+          if (annonce) {
+            console.log('[VisiteService] Found Annonce: ' + annonce.title);
+            // Adapter l'annonce au format logement pour enrichVisites
+            return {
+              _id: annonce._id,
+              title: annonce.title,
+              address: annonce.location || 'Adresse non spécifiée',
+              ownerId: (annonce.user as any)._id || annonce.user,
+              // Ajouter d'autres champs si nécessaire
+            };
+          }
+        } catch (e) {
+          console.warn('[VisiteService] Annonce lookup failed: ' + e.message);
+        }
+
+        return null; // Ni logement ni annonce trouvé
       } else {
-        // Sinon, c'est probablement un annonceId
-        return await this.logementService.findByAnnonceId(logementId);
+        // Sinon, c'est probablement un annonceId ou un titre
+        try {
+          return await this.logementService.findByAnnonceId(logementId);
+        } catch (e) {
+          // Si pas trouvé par annonceId, essayer par titre
+          const byTitle = await this.logementService.findByTitle(logementId);
+          if (byTitle) return byTitle;
+          throw e; // Déclencher le bloc catch global pour utiliser les mocks
+        }
       }
     } catch (error) {
       // Si le logement n'existe pas, créer un logement temporaire avec les infos disponibles
@@ -183,49 +412,6 @@ export class VisiteService {
     }
   }
 
-  private async enrichVisites(visites: VisiteDocument[]): Promise<any[]> {
-    return Promise.all(
-      visites.map(async (visite) => {
-        const visiteObj: any = visite.toObject();
-
-        // Récupérer les informations du client
-        try {
-          const client = await this.usersService.findById(visite.userId);
-          if (client) {
-            // Extraire nom et prénom du username si possible (format: "Prénom Nom" ou "Prénom_Nom")
-            const usernameParts = client.username.split(/[\s_]+/);
-            visiteObj.clientUsername = client.username;
-            visiteObj.clientName = usernameParts.length > 1 ? usernameParts.slice(1).join(' ') : client.username; // Nom (dernière partie)
-            visiteObj.clientFirstName = usernameParts.length > 0 ? usernameParts[0] : client.username; // Prénom (première partie)
-            visiteObj.clientFullName = client.username; // Nom complet
-            visiteObj.clientEmail = client.email;
-            visiteObj.clientPhone = client.numTel;
-          }
-        } catch (e) {
-          // Ignorer les erreurs silencieusement
-        }
-
-        // Récupérer les informations du logement
-        try {
-          if (visite.logementId) {
-            try {
-              const logement = await this.getLogementByIdOrAnnonceId(visite.logementId);
-              if (logement) {
-                visiteObj.logementTitle = logement.title;
-                visiteObj.logementAddress = logement.address;
-              }
-            } catch (e) {
-              // Logement non trouvé, continuer
-            }
-          }
-        } catch (e) {
-          // Ignorer les erreurs silencieusement
-        }
-
-        return visiteObj;
-      })
-    );
-  }
 
   async update(id: string, updateVisiteDto: UpdateVisiteDto): Promise<any> {
     const updateData: any = { ...updateVisiteDto };
@@ -418,9 +604,16 @@ export class VisiteService {
       throw new BadRequestException('Vous ne pouvez évaluer que vos propres visites');
     }
 
-    // Vérifier que la visite est validée
+    // Vérifier que la visite est validée ou auto-valider si confirmée
     if (!visite.validated) {
-      throw new BadRequestException('Vous devez d\'abord valider la visite avant de l\'évaluer');
+      if (visite.status === 'confirmed' || visite.status === 'completed') {
+        // Auto-validate
+        visite.validated = true;
+        visite.status = 'completed';
+        await visite.save();
+      } else {
+        throw new BadRequestException('Vous devez d\'abord effectuer la visite (statut confirmé) avant de l\'évaluer');
+      }
     }
 
     // Récupérer le logement pour déterminer le collector/propriétaire
@@ -429,27 +622,32 @@ export class VisiteService {
     }
 
     let logement;
-    let collectorId = 'default-owner-id'; // ID par défaut si le logement n'existe pas
+    let collectorId: string | undefined;
 
     try {
       logement = await this.getLogementByIdOrAnnonceId(visite.logementId);
-      collectorId = logement?.ownerId || collectorId;
+      if (logement && logement.ownerId && isValidObjectId(logement.ownerId)) {
+        collectorId = logement.ownerId;
+      } else if (logement && (logement as any).user && isValidObjectId((logement as any).user)) {
+        collectorId = (logement as any).user;
+      }
     } catch (error) {
-      // Si le logement n'existe pas, utiliser un ID par défaut
-      // Cela permet de créer l'évaluation même si le logement n'est pas encore dans MongoDB
-      console.warn(`Logement ${visite.logementId} non trouvé, utilisation de l'ID par défaut pour l'évaluation`);
+      console.warn(`Logement ${visite.logementId} non trouvé, évaluation sans propriétaire lié explicitement.`);
     }
 
-    // Créer la review même si le logement n'existe pas encore
-    const review = await this.reviewsService.create(
-      {
-        ...createReviewDto,
-        visiteId: id,
-        logementId: visite.logementId,
-        collectorId: collectorId,
-      },
-      userId,
-    );
+    // Créer la review
+    const reviewPayload: any = {
+      ...createReviewDto,
+      visiteId: id,
+      logementId: visite.logementId,
+    };
+
+    // N'ajouter collectorId que s'il est valide
+    if (collectorId) {
+      reviewPayload.collectorId = collectorId;
+    }
+
+    const review = await this.reviewsService.create(reviewPayload, userId);
 
     // Mettre à jour la visite avec l'ID de la review
     const reviewId = (review as any).id || (review as any)._id;

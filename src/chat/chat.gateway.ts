@@ -226,13 +226,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ) {
     try {
+      console.log(`[ChatGateway] 📥 Réception toggle_reaction - messageId: ${data.messageId}, emoji: ${data.emoji}`);
+
       const userId = this.connectedUsers.get(client.id);
       if (!userId) {
+        console.error(`[ChatGateway] ❌ Client non autorisé (socket: ${client.id})`);
         client.emit('error', { message: 'Non autorisé' });
         return;
       }
 
+      console.log(`[ChatGateway] ✅ Utilisateur identifié: ${userId}`);
+
       const updatedMessage = await this.chatService.toggleReaction(data.messageId, data.emoji, userId);
+
+      console.log(`[ChatGateway] 📤 Émission reaction_updated vers:
+        - visite:${updatedMessage.visiteId}
+        - user:${updatedMessage.receiverId}
+        - user:${updatedMessage.senderId}`);
 
       this.server.to(`visite:${updatedMessage.visiteId}`).emit('reaction_updated', {
         messageId: data.messageId,
@@ -249,10 +259,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         reactions: updatedMessage.reactions,
       });
 
-      console.log(`[ChatGateway] Reaction ${data.emoji} toggled for ${data.messageId}`);
+      console.log(`[ChatGateway] ✅ Reaction ${data.emoji} toggled for ${data.messageId} - Réactions: ${JSON.stringify(updatedMessage.reactions)}`);
       return updatedMessage;
     } catch (error: any) {
-      console.error('[ChatGateway] Error toggling reaction:', error);
+      console.error('[ChatGateway] ❌ Error toggling reaction:', error);
+      console.error('[ChatGateway]    - Message:', error.message);
+      console.error('[ChatGateway]    - Stack:', error.stack);
       client.emit('error', { message: error.message });
     }
   }

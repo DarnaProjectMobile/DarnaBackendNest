@@ -56,9 +56,9 @@ export class CreateAnnonceDto {
 
   @ApiProperty({ description: "Start date", example: "2024-07-01T00:00:00.000Z" })
   @IsDateString()
-  startDate: Date;
+  startDate: string;
 
   @ApiProperty({ description: "End date", example: "2024-12-31T00:00:00.000Z" })
   @IsDateString()
-  endDate: Date;
+  endDate: string;
 }

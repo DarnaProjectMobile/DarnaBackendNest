@@ -1,14 +1,16 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { MailModule } from 'src/mail/mail.module';
+import { AvailabilityModule } from '../availability/availability.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     MailModule, // 👈 Add this line
+    forwardRef(() => AvailabilityModule),
   ],
   controllers: [UsersController],
   providers: [UsersService],
@@ -17,4 +19,4 @@ import { MailModule } from 'src/mail/mail.module';
     MongooseModule, // ✅ Export MongooseModule so @InjectModel(User.name) works
   ],
 })
-export class UsersModule {}
+export class UsersModule { }

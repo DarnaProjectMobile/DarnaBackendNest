@@ -17,7 +17,8 @@ export class CreateVisiteDto {
   // userId n'est plus requis - il sera automatiquement pris de l'utilisateur connecté
 
   @ApiProperty({ description: 'Date et heure de la visite (ISO string)' })
-  @IsDateString()
+  // @IsDateString() <--- Temporarily disabled to debug frontend input
+  @IsString()
   @IsNotEmpty()
   dateVisite: string;
 

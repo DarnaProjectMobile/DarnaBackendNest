@@ -66,8 +66,9 @@ export class VisiteController {
     if (logementId) {
       return this.visiteService.findByLogementId(logementId);
     }
-    // Si pas de logementId, retourner toutes les visites (le service peut filtrer par ownerId si nécessaire)
-    return this.visiteService.findAll();
+    // Si pas de logementId, retourner toutes les visites des logements du propriétaire
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.visiteService.findByOwnerId(user.userId);
   }
 
   // 🏠 CÔTÉ COLOCATAIRE : Accepter une visite
@@ -365,7 +366,8 @@ export class VisiteController {
     @CurrentUser() user: any,
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.visiteService.createReview(id, createReviewDto, user.userId);
+    const result = await this.visiteService.createReview(id, createReviewDto, user.userId);
+    return result.review;
   }
 
 
