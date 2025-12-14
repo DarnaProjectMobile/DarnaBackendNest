@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, isValidObjectId } from 'mongoose';
 import { CreateAnnonceDto } from './dto/create-annonce.dto';
 import { UpdateAnnonceDto } from './dto/update-annonce.dto';
 import { Annonce, AnnonceDocument } from './entities/annonce.entity';
@@ -62,7 +62,11 @@ export class AnnoncesService {
   }
 
   async findByUser(userId: string): Promise<Annonce[]> {
-    return this.annonceModel.find({ user: userId }).exec();
+    const conditions: any[] = [{ user: userId }];
+    if (isValidObjectId(userId)) {
+      conditions.push({ user: new (Types.ObjectId as any)(userId) });
+    }
+    return this.annonceModel.find({ $or: conditions }).exec();
   }
 
   async update(id: string, dto: UpdateAnnonceDto, userPayload: any): Promise<Annonce> {

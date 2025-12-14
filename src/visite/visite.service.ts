@@ -159,6 +159,34 @@ export class VisiteService {
         throw new BadRequestException('Erreur lors de\'enregistrement de la visite dans MongoDB');
       }
 
+      // Notify the owner (Collector) about the new visit request
+      if (resolvedOwnerId) {
+        try {
+          let clientName = 'Un client';
+          try {
+            const client = await this.usersService.findById(userId);
+            if (client && client.username) {
+              clientName = client.username;
+            }
+          } catch (e) {
+            console.warn('[VisiteService] Failed to fetch client details for notification', e);
+          }
+
+          console.log(`[VisiteService] Sending visit request notification to owner ${resolvedOwnerId}`);
+          await this.notificationsFirebaseService.notifyVisitRequest({
+            userId: resolvedOwnerId.toString(),
+            visitId: savedVisite._id.toString(),
+            housingId: finalLogementId,
+            housingTitle: finalLogementId, // Using resolved ID/Title as title
+            clientName: clientName,
+            visitDate: dateVisite,
+          });
+        } catch (error) {
+          console.error('[VisiteService] Failed to send visit request notification:', error);
+          // Don't fail the request if notification fails
+        }
+      }
+
       return savedVisite;
     } catch (error) {
       console.error('Error saving visite:', error);
@@ -199,33 +227,57 @@ export class VisiteService {
   }
 
   async findByOwnerId(ownerId: string): Promise<any[]> {
+    console.log(`[VisiteService] findByOwnerId called for owner: ${ownerId}`);
+
     // 1. Trouver les logements de l'utilisateur
-    const logements = await this.logementService.findByOwnerId(ownerId);
+    let logements: any[] = [];
+    try {
+      logements = await this.logementService.findByOwnerId(ownerId);
+    } catch (e) {
+      console.warn('[VisiteService] Logement lookup error:', e);
+    }
+    console.log(`[VisiteService] Found ${logements.length} logements via findByOwnerId`);
 
     // 2. Trouver les annonces de l'utilisateur
+    let annonces: any[] = [];
     let annoncesIds: string[] = [];
+    let annoncesTitles: string[] = [];
     try {
-      const annonces = await this.annoncesService.findByUser(ownerId);
+      annonces = await this.annoncesService.findByUser(ownerId);
       annoncesIds = annonces.map(a => (a as any)._id.toString());
+      annoncesTitles = annonces.map(a => a.title).filter(t => t); // Filter out null/undefined
+      console.log(`[VisiteService] Found ${annonces.length} annonces via findByUser`);
     } catch (e) {
-      console.warn('Error fetching user annonces:', e);
+      console.warn('[VisiteService] Error fetching user annonces:', e);
     }
 
     const logementIds = logements.map(l => (l as any)._id.toString());
     const logementTitles = logements.map(l => l.title);
 
     // Combiner tous les identifiants possibles
-    const allIds = [...new Set([...logementIds, ...annoncesIds, ...logementTitles])];
+    // Important: certaines visites sont stockées avec l'ID, d'autres avec le TITRE
+    const allIds = [...new Set([
+      ...logementIds,
+      ...annoncesIds,
+      ...logementTitles,
+      ...annoncesTitles
+    ])];
+
+    console.log(`[VisiteService] Searching visits for ${allIds.length} identifiers:`, allIds);
 
     if (allIds.length === 0) {
+      console.log('[VisiteService] No related Housing/Annonces found for this user. returning empty.');
       return [];
     }
 
     // 3. Trouver les visites pour ces logements
+    // On utilise $in sur logementId qui est de type String dans le schéma Visite
     const visites = await this.visiteModel
       .find({ logementId: { $in: allIds } })
       .sort({ dateVisite: -1 })
       .exec();
+
+    console.log(`[VisiteService] Found ${visites.length} visits matching these identifiers.`);
 
     return this.enrichVisites(visites);
   }

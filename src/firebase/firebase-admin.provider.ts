@@ -23,6 +23,7 @@ export const FirebaseAdminProvider: Provider = {
           credential: admin.credential.cert(serviceAccount),
         });
         console.log('[FirebaseAdminProvider] Firebase initialisé avec succès');
+        console.log(`[FirebaseAdminProvider] Backend Configured for Project ID: ${serviceAccount.project_id}`);
       }
 
       return admin;

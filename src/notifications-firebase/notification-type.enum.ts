@@ -14,6 +14,8 @@ export enum NotificationType {
   VISIT_REMINDER_COLLECTOR_H30 = 'VISIT_REMINDER_COLLECTOR_H30',
   // Chat messages
   NEW_MESSAGE = 'NEW_MESSAGE',
+  // Visit Request
+  VISIT_REQUEST = 'VISIT_REQUEST',
 }
 
 

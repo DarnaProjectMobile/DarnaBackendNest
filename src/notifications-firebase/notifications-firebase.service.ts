@@ -13,8 +13,16 @@ export class NotificationsFirebaseService {
 
   private get isConfigured(): boolean {
     try {
-      return this.firebase && this.firebase.apps && this.firebase.apps.length > 0;
+      if (this.firebase && this.firebase.apps && this.firebase.apps.length > 0) {
+        return true;
+      }
+      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+      console.error('!!! FIREBASE ERROR: firebase-service-account.json is MISSING or INVALID !!!');
+      console.error('!!! Notifications will NOT be sent. Please add this file to the root.     !!!');
+      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+      return false;
     } catch (error) {
+      console.error('Error checking firebase config:', error);
       return false;
     }
   }
@@ -229,11 +237,12 @@ Veuillez :
     try {
       const response = await this.messaging.sendEachForMulticast({
         tokens,
-        notification: {
+        // We do NOT send the 'notification' key. This ensures 'onMessageReceived' is called
+        // even when the app is in the background, allowing us to save the notification locally
+        // and show our own custom notification.
+        data: {
           title,
           body,
-        },
-        data: {
           notificationId: notificationRef.id,
           type,
           visitId: visitId ?? '',
@@ -339,6 +348,32 @@ Veuillez :
       housingId: params.housingId,
       role: params.role || 'CLIENT', // Utiliser le paramètre ou CLIENT par défaut
       sentBy: params.sentBy || 'COLLECTOR', // Utiliser le paramètre ou COLLECTOR par défaut
+    });
+  }
+
+  async notifyVisitRequest(params: {
+    userId: string; // The owner/collector ID
+    visitId: string;
+    housingId: string;
+    housingTitle?: string;
+    clientName: string;
+    visitDate: Date;
+  }): Promise<void> {
+    if (!this.isConfigured) {
+      return;
+    }
+    const title = 'Nouvelle demande de visite';
+    const body = `${params.clientName} souhaite visiter ${params.housingTitle ?? 'votre logement'} le ${params.visitDate.toLocaleDateString('fr-FR')}.`;
+
+    await this.sendAndStoreNotification({
+      userId: params.userId,
+      type: NotificationType.VISIT_REQUEST,
+      title,
+      body,
+      visitId: params.visitId,
+      housingId: params.housingId,
+      role: 'COLLECTOR',
+      sentBy: 'CLIENT',
     });
   }
 

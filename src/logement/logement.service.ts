@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types, isValidObjectId } from 'mongoose';
 import { Logement, LogementDocument } from './schemas/logement.schema';
 import { CreateLogementDto } from './dto/create-logement.dto';
 import { UpdateLogementDto } from './dto/update-logement.dto';
@@ -50,6 +50,7 @@ export class LogementService {
   }
 
   async findByOwnerId(ownerId: string): Promise<Logement[]> {
+    // ownerId is defined as String in Logement schema, so we should query with string.
     return this.logementModel.find({ ownerId }).exec();
   }
 

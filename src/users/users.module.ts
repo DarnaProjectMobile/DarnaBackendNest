@@ -5,11 +5,13 @@ import { UsersController } from './users.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { MailModule } from 'src/mail/mail.module';
 import { AvailabilityModule } from '../availability/availability.module';
+import { NotificationsFirebaseModule } from '../notifications-firebase/notifications-firebase.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     MailModule, // 👈 Add this line
+    NotificationsFirebaseModule,
     forwardRef(() => AvailabilityModule),
   ],
   controllers: [UsersController],
