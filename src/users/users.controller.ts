@@ -17,44 +17,13 @@ import { CurrentUser } from '../auth/common/current-user.decorator';
 import { ApiTags, ApiConsumes } from '@nestjs/swagger';
 import * as NestPlatformExpress from '@nestjs/platform-express';
 const FileInterceptor = (NestPlatformExpress as any).FileInterceptor;
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
 import { CreateMailDto } from '../mail/dto/create-mail.dto';
 
 import { ForgotPasswordDto } from '../mail/dto/forgot-password.dto';
 import { ResetPasswordDto } from '../mail/dto/reset-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { DeviceTokenDto } from './dto/device-token.dto';
-
-// Configure multer storage for user profile images
-const userProfileImageStorage = {
-  storage: diskStorage({
-    destination: (req, file, cb) => {
-      const uploadPath = join(process.cwd(), 'uploads', 'users');
-      if (!existsSync(uploadPath)) {
-        mkdirSync(uploadPath, { recursive: true });
-      }
-      cb(null, uploadPath);
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      const extension = extname(file.originalname);
-      cb(null, uniqueSuffix + extension);
-    },
-  }),
-  fileFilter: (req, file, cb) => {
-    if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
-      cb(new Error('Only image files are allowed!'), false);
-    } else {
-      cb(null, true);
-    }
-  },
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB max file size
-  },
-};
+import { userImageUpload } from './user.upload.images';
 
 @ApiTags('User')
 @Controller('users')
@@ -89,7 +58,7 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
-    FileInterceptor('image', userProfileImageStorage),
+    FileInterceptor('image', userImageUpload),
   )
   async updateImage(
     @CurrentUser() user: any,
@@ -104,12 +73,12 @@ export class UsersController {
     return this.usersService.updateImageById(user.userId, imagePath);
   }
 
-  @Post('000000000000000000000000000000')
+  @Post('me/send-verification')
   @UseGuards(JwtAuthGuard)
   sendVerification(@CurrentUser() user: any) {
     return this.usersService.sendVerificationCodeById(user.userId);
   }
-  
+
   @Post('me/verify')
   @UseGuards(JwtAuthGuard)
   async verifyMe(@CurrentUser() user: any, @Body() body: CreateMailDto) {

@@ -12,7 +12,7 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly mailService: MailService,
-  ) {}
+  ) { }
 
   // Create user
   async createUser(dto: CreateUserDto, image?: string): Promise<User> {
@@ -31,7 +31,18 @@ export class UsersService {
       image,
     });
 
-    return createdUser.save();
+    const savedUser = await createdUser.save();
+
+    // Automatically send verification code
+    try {
+      await this.sendVerificationCodeById(savedUser._id.toString());
+    } catch (error) {
+      console.error('Failed to send initial verification email:', error);
+      // We don't throw here to avoid rolling back registration, 
+      // user can request manual resend later.
+    }
+
+    return savedUser;
   }
 
   async findAll(): Promise<User[]> {
@@ -145,16 +156,15 @@ export class UsersService {
     return { message: 'Password reset successful' };
   }
   async updateUser(userId: string, updateData: any): Promise<User | null> {
-    const user = await this.userModel.findById(userId);
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
 
-    // Prevent duplicate email
-    if (updateData.email && updateData.email !== user.email) {
-      const emailExists = await this.userModel.findOne({ email: updateData.email });
-      if (emailExists) {
-        throw new BadRequestException('Email already in use');
+    // Prevent duplicate email if email is being changed
+    if (updateData.email) {
+      const user = await this.userModel.findById(userId);
+      if (user && updateData.email !== user.email) {
+        const emailExists = await this.userModel.findOne({ email: updateData.email });
+        if (emailExists) {
+          throw new BadRequestException('Email already in use');
+        }
       }
     }
 
@@ -163,11 +173,10 @@ export class UsersService {
       updateData.password = await bcrypt.hash(updateData.password, 10);
     }
 
-    // Apply updates
-    Object.assign(user, updateData);
-    await user.save();
-
-    return user;
-    
+    // Use findByIdAndUpdate for safe partial updates
+    return this.userModel.findByIdAndUpdate(userId, updateData, {
+      new: true,
+      runValidators: true
+    }).exec();
   }
 }

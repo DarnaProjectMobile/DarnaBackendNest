@@ -345,39 +345,4 @@ export class VisiteController {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     return this.visiteService.addDocuments(id, allFiles, user.userId);
   }
-
-  // 👤 CÔTÉ CLIENT : Créer une évaluation/review pour une visite
-  @Post(':id/review')
-  @UseGuards(RolesGuard)
-  @Roles(Role.Client)
-  @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Créer une évaluation pour une visite (Client uniquement)' })
-  @ApiParam({ name: 'id', description: 'ID de la visite' })
-  @ApiBody({ type: CreateReviewDto })
-  @ApiResponse({ status: 201, description: 'Évaluation créée avec succès' })
-  @ApiResponse({ status: 400, description: 'Visite non validée ou déjà évaluée' })
-  @ApiResponse({ status: 401, description: 'Non autorisé' })
-  @ApiResponse({ status: 403, description: 'Accès refusé - Client uniquement' })
-  @ApiResponse({ status: 404, description: 'Visite non trouvée' })
-  async createReview(
-    @Param('id') id: string,
-    @Body() createReviewDto: CreateReviewDto,
-    @CurrentUser() user: any,
-  ) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.visiteService.createReview(id, createReviewDto, user.userId);
-  }
-
-
-  // 👤 CÔTÉ CLIENT : Récupérer les évaluations d'une visite
-  @Get(':id/reviews')
-  @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Récupérer les évaluations d\'une visite' })
-  @ApiParam({ name: 'id', description: 'ID de la visite' })
-  @ApiResponse({ status: 200, description: 'Liste des évaluations' })
-  @ApiResponse({ status: 401, description: 'Non autorisé' })
-  @ApiResponse({ status: 404, description: 'Visite non trouvée' })
-  async getVisiteReviews(@Param('id') id: string) {
-    return this.visiteService.getVisiteReviews(id);
-  }
 }

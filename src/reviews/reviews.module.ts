@@ -4,7 +4,7 @@ import { ReviewsService } from './reviews.service';
 import { ReviewsController } from './reviews.controller';
 import { Review, ReviewSchema } from './entities/review.entity';
 import { User, UserSchema } from '../users/schemas/user.schema';
-import { Annonce, AnnonceSchema } from '../annonces/entities/annonce.entity';
+import { Annonce, AnnonceSchema } from 'src/annonces/entities/annonce.entity';
 
 @Module({
   imports: [
@@ -16,6 +16,6 @@ import { Annonce, AnnonceSchema } from '../annonces/entities/annonce.entity';
   ],
   controllers: [ReviewsController],
   providers: [ReviewsService],
-  exports: [ReviewsService],
+  exports: [ReviewsService], // allows other modules to use ReviewsService
 })
-export class ReviewsModule { }
+export class ReviewsModule {}

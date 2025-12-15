@@ -9,7 +9,7 @@ export class AuthService {
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   // 📝 Register a new user
   async register(dto: CreateUserDto, image?: string) {
@@ -29,5 +29,10 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
       user,
     };
+  }
+
+  // ✅ Verify Email Proxy
+  async verifyEmail(userId: string, code: string) {
+    return this.usersService.verifyEmailById(userId, code);
   }
 }

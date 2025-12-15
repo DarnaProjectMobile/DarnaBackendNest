@@ -10,6 +10,7 @@ import { CreateUserDto } from '../users/dto/create-user.dto';
 import * as NestPlatformExpress from '@nestjs/platform-express';
 const FileInterceptor = (NestPlatformExpress as any).FileInterceptor;
 import { diskStorage } from 'multer';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 import { LoginDto } from './dto/login.dto';
 import { ApiConsumes, ApiTags } from '@nestjs/swagger';
 
@@ -42,5 +43,11 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto.email, dto.password);
+  }
+
+  // 3️⃣ Verify Email (Public)
+  @Post('verify-email')
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.userId, dto.code);
   }
 }

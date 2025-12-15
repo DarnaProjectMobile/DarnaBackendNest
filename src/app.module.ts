@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
 import { AnnoncesModule } from './annonces/annonces.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { ReviewsSummaryModule } from './reviews-summary/reviews-summary.module';
 import { ReportsModule } from './reports/reports.module';
 import { PubliciteModule } from './publicite/publicite.module';
 import { VisiteModule } from './visite/visite.module';
@@ -37,6 +38,7 @@ import { UploadsModule } from './uploads/uploads.module';
     MailModule,
     AnnoncesModule,
     ReviewsModule,
+    ReviewsSummaryModule,
     ReportsModule,
     PubliciteModule,
     VisiteModule,

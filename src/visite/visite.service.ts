@@ -439,36 +439,5 @@ export class VisiteService {
       // Cela permet de créer l'évaluation même si le logement n'est pas encore dans MongoDB
       console.warn(`Logement ${visite.logementId} non trouvé, utilisation de l'ID par défaut pour l'évaluation`);
     }
-
-    // Créer la review même si le logement n'existe pas encore
-    const review = await this.reviewsService.create(
-      {
-        ...createReviewDto,
-        visiteId: id,
-        logementId: visite.logementId,
-        collectorId: collectorId,
-      },
-      userId,
-    );
-
-    // Mettre à jour la visite avec l'ID de la review
-    const reviewId = (review as any).id || (review as any)._id;
-    const updatedVisite = await this.visiteModel
-      .findByIdAndUpdate(
-        id,
-        {
-          reviewId,
-        },
-        { new: true }
-      )
-      .exec();
-
-    return { visite: updatedVisite, review };
-  }
-
-
-  async getVisiteReviews(id: string): Promise<any[]> {
-    await this.findOne(id); // Vérifier que la visite existe
-    return this.reviewsService.findByVisiteId(id);
-  }
+}
 }
