@@ -6,7 +6,7 @@ import { CreateVisiteDto } from './dto/create-visite.dto';
 import { UpdateVisiteDto } from './dto/update-visite.dto';
 import { ReviewsService } from '../reviews/reviews.service';
 import { CreateReviewDto } from '../reviews/dto/create-review.dto';
-import { ReviewDocument } from '../reviews/entities/review.entity';
+import { Review } from '../reviews/entities/review.entity';
 import { UsersService } from '../users/users.service';
 import { LogementService } from '../logement/logement.service';
 import { NotificationsFirebaseService } from '../notifications-firebase/notifications-firebase.service';
@@ -14,6 +14,7 @@ import { NotificationsFirebaseService } from '../notifications-firebase/notifica
 export class VisiteService {
   constructor(
     @InjectModel(Visite.name) private visiteModel: Model<VisiteDocument>,
+    @InjectModel(Review.name) private reviewModel: Model<Review>,
     private reviewsService: ReviewsService,
     private usersService: UsersService,
     private logementService: LogementService,
@@ -430,14 +431,120 @@ export class VisiteService {
 
     let logement;
     let collectorId = 'default-owner-id'; // ID par défaut si le logement n'existe pas
+    let propertyId = visite.logementId; // Utiliser le logementId comme propertyId par défaut
 
     try {
       logement = await this.getLogementByIdOrAnnonceId(visite.logementId);
       collectorId = logement?.ownerId || collectorId;
+      // Si le logement a un _id MongoDB, l'utiliser comme propertyId
+      if (logement?._id && isValidObjectId(logement._id)) {
+        propertyId = logement._id.toString();
+      }
     } catch (error) {
       // Si le logement n'existe pas, utiliser un ID par défaut
       // Cela permet de créer l'évaluation même si le logement n'est pas encore dans MongoDB
       console.warn(`Logement ${visite.logementId} non trouvé, utilisation de l'ID par défaut pour l'évaluation`);
     }
-}
+
+    // Préparer le DTO pour créer la review
+    const reviewDto: CreateReviewDto = {
+      property: propertyId,
+      rating: createReviewDto.rating,
+      comment: createReviewDto.comment,
+      userName: createReviewDto.userName,
+      propertyName: createReviewDto.propertyName || logement?.title || visite.logementId,
+    };
+
+    // Créer la review en utilisant le service (userId en premier paramètre)
+    const review = await this.reviewsService.create(userId, reviewDto);
+
+    // Mettre à jour la review avec les informations spécifiques à la visite
+    if (review && review._id) {
+      const updateData: any = {};
+      if (id && isValidObjectId(id)) {
+        updateData.visiteId = new Types.ObjectId(id);
+      }
+      if (visite.logementId) {
+        updateData.logementId = visite.logementId;
+      }
+      if (collectorId && isValidObjectId(collectorId)) {
+        updateData.collectorId = new Types.ObjectId(collectorId);
+      }
+
+      // Mettre à jour directement dans la base de données
+      await this.reviewModel.findByIdAndUpdate(review._id, updateData, { new: true });
+    }
+
+    // Récupérer la review mise à jour
+    const updatedReview = await this.reviewsService.findOne(review._id);
+
+    return updatedReview;
+  }
+
+  async getReviewByVisiteId(id: string): Promise<any> {
+    // Chercher la review par visiteId en utilisant le modèle directement
+    const review = await this.reviewModel
+      .findOne({ visiteId: new Types.ObjectId(id) })
+      .populate('user', 'username email')
+      .populate('property', 'title')
+      .exec();
+
+    if (!review) {
+      throw new NotFoundException(`Review for visite ${id} not found`);
+    }
+
+    // Formater la réponse manuellement (même format que ReviewsService)
+    const reviewObj: any = review.toObject();
+    const user = reviewObj.user || {};
+    const property = reviewObj.property || {};
+
+    return {
+      _id: reviewObj._id?.toString(),
+      userId: user._id?.toString() || "",
+      propertyId: property._id?.toString() || "",
+      propertyName: reviewObj.propertyName || property.title || "",
+      rating: reviewObj.rating,
+      comment: reviewObj.comment,
+      userName: reviewObj.userName || user.username || user.email || "",
+      date: reviewObj.createdAt?.toISOString() || null,
+      createdAt: reviewObj.createdAt?.toISOString() || null,
+      updatedAt: reviewObj.updatedAt?.toISOString() || null,
+      visiteId: reviewObj.visiteId?.toString() || null,
+      logementId: reviewObj.logementId || null,
+      collectorId: reviewObj.collectorId?.toString() || null,
+    };
+  }
+
+  async getVisiteReviews(id: string): Promise<any[]> {
+    // Chercher toutes les reviews pour une visite (normalement il n'y en a qu'une)
+    const reviews = await this.reviewModel
+      .find({ visiteId: new Types.ObjectId(id) })
+      .populate('user', 'username email')
+      .populate('property', 'title')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    // Formater chaque review
+    return reviews.map((review) => {
+      const reviewObj: any = review.toObject();
+      const user = reviewObj.user || {};
+      const property = reviewObj.property || {};
+
+      return {
+        _id: reviewObj._id?.toString(),
+        userId: user._id?.toString() || "",
+        propertyId: property._id?.toString() || "",
+        propertyName: reviewObj.propertyName || property.title || "",
+        rating: reviewObj.rating,
+        comment: reviewObj.comment,
+        userName: reviewObj.userName || user.username || user.email || "",
+        date: reviewObj.createdAt?.toISOString() || null,
+        createdAt: reviewObj.createdAt?.toISOString() || null,
+        updatedAt: reviewObj.updatedAt?.toISOString() || null,
+        visiteId: reviewObj.visiteId?.toString() || null,
+        logementId: reviewObj.logementId || null,
+        collectorId: reviewObj.collectorId?.toString() || null,
+      };
+    });
+  }
 }

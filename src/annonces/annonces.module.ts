@@ -5,6 +5,7 @@ import { AnnoncesController } from './annonces.controller';
 import { Annonce, AnnonceSchema } from './entities/annonce.entity';
 import { UsersModule } from 'src/users/users.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { ImageVerificationService } from './image-verification.service';
 
 @Module({
   imports: [
@@ -13,6 +14,6 @@ import { NotificationModule } from 'src/notification/notification.module';
     NotificationModule,
   ],
   controllers: [AnnoncesController],
-  providers: [AnnoncesService],
+  providers: [AnnoncesService, ImageVerificationService],
 })
 export class AnnoncesModule {}

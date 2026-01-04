@@ -11,8 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import * as NestPlatformExpress from '@nestjs/platform-express';
-const FileInterceptor = (NestPlatformExpress as any).FileInterceptor;
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/role.guard';
@@ -27,7 +26,7 @@ import type { Request } from 'express';
 @ApiTags('publicites')
 @Controller('publicites')
 export class PubliciteController {
-  constructor(private readonly service: PubliciteService) { }
+  constructor(private readonly service: PubliciteService) {}
 
   @Post()
   @ApiBearerAuth('access-token')
@@ -87,7 +86,7 @@ export class PubliciteController {
     // Pour l'instant, on utilise l'URL relative qui sera servie par express.static
     const baseUrl = req.protocol + '://' + req.get('host');
     const imageUrl = `${baseUrl}/uploads/publicites/${file.filename}`;
-
+    
     return {
       message: 'Image uploaded successfully',
       imageUrl: imageUrl,

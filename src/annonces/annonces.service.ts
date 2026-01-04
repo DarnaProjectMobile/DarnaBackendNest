@@ -8,10 +8,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateAnnonceDto } from './dto/create-annonce.dto';
 import { UpdateAnnonceDto } from './dto/update-annonce.dto';
+import { Annonce, AnnonceDocument } from './entities/annonce.entity';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
 import { BookAnnonceDto } from './dto/book-annonce.dto';
 import { NotificationService } from 'src/notification/notification.service';
-import { Annonce, AnnonceDocument } from './entities/annonce.entity';
+import { unlink } from 'fs/promises';
+import { join } from 'path';
+import { ImageVerificationService } from './image-verification.service';
 
 @Injectable()
 export class AnnoncesService {
@@ -23,15 +26,37 @@ export class AnnoncesService {
     private readonly userModel: Model<UserDocument>,
 
     private readonly notificationService: NotificationService,
-  ) {}
+    private readonly imageVerificationService: ImageVerificationService,
+  ) { }
 
-  // ============================
-  // CREATE ANNONCE
-  // ============================
-  async create(
+  async create(createAnnonceDto: CreateAnnonceDto, userPayload: any): Promise<Annonce> {
+    const user = await this.userModel.findById(userPayload.userId);
+    if (!user) throw new ForbiddenException('Authenticated user not found');
+
+    if (user.role !== 'collocator') {
+      throw new ForbiddenException('Only Collocators can create annonces');
+    }
+
+    if (new Date(createAnnonceDto.startDate) >= new Date(createAnnonceDto.endDate)) {
+      throw new BadRequestException('startDate must be earlier than endDate');
+    }
+
+    const annonce = new this.annonceModel({
+      ...createAnnonceDto,
+      user: new Types.ObjectId(user._id),
+    });
+
+    return annonce.save();
+  }
+
+  /**
+   * Create annonce with image verification
+   * Verifies that uploaded images are house-related before saving
+   */
+  async createWithImageVerification(
     createAnnonceDto: CreateAnnonceDto,
+    files: Express.Multer.File[],
     userPayload: any,
-    imagePaths: string[],
   ): Promise<Annonce> {
     const user = await this.userModel.findById(userPayload.userId);
     if (!user) throw new ForbiddenException('Authenticated user not found');
@@ -40,34 +65,52 @@ export class AnnoncesService {
       throw new ForbiddenException('Only Collocators can create annonces');
     }
 
-    const start = new Date(createAnnonceDto.startDate);
-    const end = new Date(createAnnonceDto.endDate);
-
-    if (start >= end) {
+    if (new Date(createAnnonceDto.startDate) >= new Date(createAnnonceDto.endDate)) {
       throw new BadRequestException('startDate must be earlier than endDate');
     }
 
+    // Verify all uploaded images
+    const imagePaths = files.map((file) => file.path);
+    const verificationResults = await this.imageVerificationService.verifyHouseImages(imagePaths);
+
+    // Check which images failed verification
+    const failedImages: string[] = [];
+    verificationResults.forEach((isValid, index) => {
+      if (!isValid) {
+        failedImages.push(files[index].originalname);
+      }
+    });
+
+    // If any images failed, delete all uploaded files and throw error
+    if (failedImages.length > 0) {
+      // Clean up uploaded files
+      await Promise.all(
+        imagePaths.map((path) =>
+          unlink(path).catch((err) => console.error(`Failed to delete file ${path}:`, err)),
+        ),
+      );
+
+      throw new BadRequestException(
+        `The following images are not house-related: ${failedImages.join(', ')}. Please upload images of house interiors or exteriors only.`,
+      );
+    }
+
+    // All images are valid, create annonce with image filenames
+    const imageUrls = files.map((file) => file.filename);
+
     const annonce = new this.annonceModel({
       ...createAnnonceDto,
-      startDate: start,
-      endDate: end,
-      images: imagePaths,
-      user: user._id,
+      images: imageUrls,
+      user: new Types.ObjectId(user._id),
     });
 
     return annonce.save();
   }
 
-  // ============================
-  // GET ALL
-  // ============================
   async findAll(): Promise<Annonce[]> {
     return this.annonceModel.find().populate('user', 'username email').exec();
   }
 
-  // ============================
-  // GET ONE
-  // ============================
   async findOne(id: string): Promise<Annonce> {
     const annonce = await this.annonceModel
       .findById(id)
@@ -80,29 +123,12 @@ export class AnnoncesService {
     return annonce;
   }
 
-  // ============================
-  // UPDATE ANNONCE
-  // ============================
-  async update(
-    id: string,
-    dto: UpdateAnnonceDto,
-    userPayload: any,
-    newImages?: string[],
-  ): Promise<Annonce> {
+  async update(id: string, dto: UpdateAnnonceDto, userPayload: any): Promise<Annonce> {
     const annonce = await this.annonceModel.findById(id);
     if (!annonce) throw new NotFoundException(`Annonce #${id} not found`);
 
     if (annonce.user.toString() !== userPayload.userId) {
       throw new ForbiddenException('You can only update your own annonces');
-    }
-
-    // Validate new dates if provided
-    if (dto.startDate) {
-      annonce.startDate = new Date(dto.startDate);
-    }
-
-    if (dto.endDate) {
-      annonce.endDate = new Date(dto.endDate);
     }
 
     if (dto.startDate && dto.endDate) {
@@ -111,20 +137,10 @@ export class AnnoncesService {
       }
     }
 
-    // Apply other updated fields  
     Object.assign(annonce, dto);
-
-    // Handle images
-    if (newImages?.length) {
-      annonce.images = newImages;
-    }
-
     return annonce.save();
   }
 
-  // ============================
-  // DELETE ANNONCE
-  // ============================
   async remove(id: string, userPayload: any): Promise<{ message: string }> {
     const annonce = await this.annonceModel.findById(id);
     if (!annonce) throw new NotFoundException(`Annonce #${id} not found`);
@@ -137,16 +153,14 @@ export class AnnoncesService {
     return { message: 'Annonce deleted successfully' };
   }
 
-  // ============================
-  // BOOKING REQUEST
-  // ============================
+  // ⭐ Add booking to attending list
   async bookAnnonce(id: string, dto: BookAnnonceDto, userPayload: any) {
     const annonce = await this.annonceModel.findById(id);
     if (!annonce) throw new NotFoundException(`Annonce #${id} not found`);
 
     const bookingDate = new Date(dto.bookingStartDate);
 
-    if (bookingDate < annonce.startDate || bookingDate >= annonce.endDate) {
+    if (bookingDate < new Date(annonce.startDate) || bookingDate >= new Date(annonce.endDate)) {
       throw new BadRequestException(
         'bookingStartDate must be >= annonce.startDate and < annonce.endDate',
       );
@@ -166,21 +180,22 @@ export class AnnoncesService {
     ]);
 
     if (owner?.deviceTokens?.length) {
-      await this.notificationService.notifyBookingRequest(owner.deviceTokens, {
-        annonceId: savedAnnonce._id.toString(),
-        annonceTitle: savedAnnonce.title,
-        bookingDate: this.formatBookingDate(bookingDate),
-        bookingUserName: bookingUser?.username,
-        type: 'BOOKING_REQUEST',
-      });
+      await this.notificationService.notifyBookingRequest(
+        owner.deviceTokens,
+        {
+          annonceId: savedAnnonce._id.toString(),
+          annonceTitle: savedAnnonce.title,
+          bookingDate: this.formatBookingDate(bookingDate),
+          bookingUserName: bookingUser?.username,
+          type: 'BOOKING_REQUEST',
+        },
+      );
     }
 
     return savedAnnonce;
   }
 
-  // ============================
-  // ACCEPT / REJECT BOOKING
-  // ============================
+  // ⭐ Accept or reject booking
   async acceptBooking(
     annonceId: string,
     bookingId: string,
@@ -192,27 +207,26 @@ export class AnnoncesService {
     const bookingIndex = annonce.attendingListBookings.findIndex(
       b => b._id.toString() === bookingId,
     );
-
     if (bookingIndex === -1) throw new NotFoundException('Booking not found');
 
     const booking = annonce.attendingListBookings[bookingIndex];
 
     if (accept) {
+      // Add to confirmed bookings
       annonce.bookings.push(booking);
-      annonce.nbrCollocateurActuel++;
+      annonce.nbrCollocateurActuel += 1;
 
       if (annonce.nbrCollocateurActuel > annonce.nbrCollocateurMax) {
         throw new BadRequestException('Annonce is fully booked');
       }
     }
 
-    // Remove from pending list (both accept and reject)
+    // Remove from attending list in both accept/reject
     annonce.attendingListBookings.splice(bookingIndex, 1);
 
     const savedAnnonce = await annonce.save();
 
     const bookingUser = await this.userModel.findById(booking.user);
-
     if (bookingUser?.deviceTokens?.length) {
       await this.notificationService.notifyBookingResponse(
         bookingUser.deviceTokens,

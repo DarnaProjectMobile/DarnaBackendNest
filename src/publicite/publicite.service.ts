@@ -17,7 +17,7 @@ export class PubliciteService {
     private readonly userModel: Model<UserDocument>,
 
     private readonly qrCodeService: QrCodeService,
-  ) { }
+  ) {}
 
   // Création d'une publicité
   async create(dto: CreatePubliciteDto, userPayload: any) {
@@ -30,7 +30,7 @@ export class PubliciteService {
 
     const pub = new this.model({
       ...dto,
-      sponsor: new (Types.ObjectId as any)(sponsor._id),
+      sponsor: new Types.ObjectId(sponsor._id),
     });
 
     // SI TYPE = REDUCTION → générer coupon + QR code

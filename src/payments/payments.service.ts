@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, InternalServerErrorException } from '@
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import Stripe from 'stripe';
-import { Model, Types, isValidObjectId } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
 
 @Injectable()
@@ -43,7 +43,7 @@ export class PaymentsService {
    * Confirme le paiement et ajoute des crédits à l'utilisateur
    */
   async confirmPaymentAndAddCredits(userId: string, credits = 1) {
-    if (!isValidObjectId(userId)) {
+    if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('ID utilisateur invalide');
     }
 
