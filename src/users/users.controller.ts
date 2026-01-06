@@ -1,34 +1,21 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Patch,
-  Post,
-  UploadedFile,
-  UseGuards,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Get, Patch, Body, UseGuards, Req, UploadedFile, UseInterceptors, Post, Param } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorators';
 import { CurrentUser } from '../auth/common/current-user.decorator';
-import { ApiTags, ApiConsumes } from '@nestjs/swagger';
-import * as NestPlatformExpress from '@nestjs/platform-express';
-const FileInterceptor = (NestPlatformExpress as any).FileInterceptor;
-import { CreateMailDto } from '../mail/dto/create-mail.dto';
-
-import { ForgotPasswordDto } from '../mail/dto/forgot-password.dto';
-import { ResetPasswordDto } from '../mail/dto/reset-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { DeviceTokenDto } from './dto/device-token.dto';
-import { userImageUpload } from './user.upload.images';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @ApiTags('User')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(
+    private readonly usersService: UsersService,
+    private cloudinaryService: CloudinaryService
+  ) { }
 
   // 👑 Admin only: Get all users
   @Get()
@@ -58,7 +45,9 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
-    FileInterceptor('image', userImageUpload),
+    FileInterceptor('image', {
+      storage: require('multer').memoryStorage(), // Use memory storage instead of disk
+    }),
   )
   async updateImage(
     @CurrentUser() user: any,
@@ -68,34 +57,24 @@ export class UsersController {
       throw new Error('No image uploaded');
     }
 
-    // Store the relative path to the image
-    const imagePath = `/uploads/users/${file.filename}`;
-    return this.usersService.updateImageById(user.userId, imagePath);
+    // Upload to Cloudinary
+    const result = await this.cloudinaryService.uploadImage(file, 'users');
+    // Store the Cloudinary URL instead of local path
+    const imageUrl = result.secure_url;
+    return this.usersService.updateImageById(user.userId, imageUrl);
   }
 
   @Post('me/send-verification')
   @UseGuards(JwtAuthGuard)
-  sendVerification(@CurrentUser() user: any) {
+  async sendVerification(@CurrentUser() user: any) {
     return this.usersService.sendVerificationCodeById(user.userId);
   }
 
-  @Post('me/verify')
-  @UseGuards(JwtAuthGuard)
-  async verifyMe(@CurrentUser() user: any, @Body() body: CreateMailDto) {
-    return this.usersService.verifyEmailById(user.userId, body.code);
-  }
-
-  @Post('forgot-password')
-  async forgotPassword(@Body() body: ForgotPasswordDto) {
-    return this.usersService.sendPasswordResetCode(body.email);
-  }
-
-  @Post('reset-password')
-  async resetPassword(@Body() body: ResetPasswordDto) {
-    return this.usersService.resetPassword(
-      body.code,
-      body.newPassword,
-      body.confirmPassword,
-    );
+  @Get(':id')
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiResponse({ status: 200, description: 'User found' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async getUser(@Param('id') id: string) {
+    return this.usersService.findById(id);
   }
 }

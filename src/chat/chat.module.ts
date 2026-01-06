@@ -10,6 +10,7 @@ import { LogementModule } from '../logement/logement.module';
 import { NotificationsFirebaseModule } from '../notifications-firebase/notifications-firebase.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -20,10 +21,10 @@ import { ConfigModule } from '@nestjs/config';
     NotificationsFirebaseModule,
     JwtModule,
     ConfigModule,
+    CloudinaryModule, // Add Cloudinary module
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatGateway],
   exports: [ChatService],
 })
 export class ChatModule {}
-

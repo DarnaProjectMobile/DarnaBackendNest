@@ -20,13 +20,16 @@ import { Role } from 'src/auth/common/role.enum';
 import { CreatePubliciteDto } from './dto/create-publicite.dto';
 import { UpdatePubliciteDto } from './dto/update-publicite.dto';
 import { PubliciteService } from './publicite.service';
-import { publiciteImageUpload } from './publicite.upload.images';
 import type { Request } from 'express';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @ApiTags('publicites')
 @Controller('publicites')
 export class PubliciteController {
-  constructor(private readonly service: PubliciteService) {}
+  constructor(
+    private readonly service: PubliciteService,
+    private cloudinaryService: CloudinaryService
+  ) {}
 
   @Post()
   @ApiBearerAuth('access-token')
@@ -73,8 +76,10 @@ export class PubliciteController {
   @ApiOperation({ summary: 'Upload image for publicité' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.Sponsor)
-  @UseInterceptors(FileInterceptor('image', publiciteImageUpload))
-  uploadImage(
+  @UseInterceptors(FileInterceptor('image', {
+    storage: require('multer').memoryStorage(), // Use memory storage instead of disk
+  }))
+  async uploadImage(
     @UploadedFile() file: Express.Multer.File,
     @Req() req: Request,
   ) {
@@ -82,15 +87,13 @@ export class PubliciteController {
       return { error: 'No image uploaded' };
     }
 
-    // Retourner l'URL complète de l'image
-    // Pour l'instant, on utilise l'URL relative qui sera servie par express.static
-    const baseUrl = req.protocol + '://' + req.get('host');
-    const imageUrl = `${baseUrl}/uploads/publicites/${file.filename}`;
+    // Upload to Cloudinary
+    const result = await this.cloudinaryService.uploadImage(file, 'publicites');
     
     return {
       message: 'Image uploaded successfully',
-      imageUrl: imageUrl,
-      filename: file.filename,
+      imageUrl: result.secure_url, // Use Cloudinary URL
+      publicId: result.public_id, // Return public ID for potential future operations
     };
   }
 }

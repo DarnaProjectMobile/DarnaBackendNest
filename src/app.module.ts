@@ -19,7 +19,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsFirebaseModule } from './notifications-firebase/notifications-firebase.module';
 import { ChatModule } from './chat/chat.module';
-import { UploadsModule } from './uploads/uploads.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -50,8 +50,9 @@ import { UploadsModule } from './uploads/uploads.module';
     PaymentsModule,
     ScheduleModule.forRoot(),
     NotificationsFirebaseModule,
+
     ChatModule,
-    UploadsModule,
+    CloudinaryModule, // ✅ Cloud-based image storage
   ],
 })
 export class AppModule { }

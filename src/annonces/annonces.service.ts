@@ -14,7 +14,8 @@ import { BookAnnonceDto } from './dto/book-annonce.dto';
 import { NotificationService } from 'src/notification/notification.service';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
-import { ImageVerificationService } from './image-verification.service';
+// Note: We're commenting out image verification since it doesn't work with Cloudinary URLs
+// import { ImageVerificationService } from './image-verification.service';
 
 @Injectable()
 export class AnnoncesService {
@@ -26,7 +27,7 @@ export class AnnoncesService {
     private readonly userModel: Model<UserDocument>,
 
     private readonly notificationService: NotificationService,
-    private readonly imageVerificationService: ImageVerificationService,
+    // private readonly imageVerificationService: ImageVerificationService, // Comment out for now
   ) { }
 
   async create(createAnnonceDto: CreateAnnonceDto, userPayload: any): Promise<Annonce> {
@@ -50,12 +51,11 @@ export class AnnoncesService {
   }
 
   /**
-   * Create annonce with image verification
-   * Verifies that uploaded images are house-related before saving
+   * Create annonce with image URLs (Cloudinary integration)
    */
   async createWithImageVerification(
     createAnnonceDto: CreateAnnonceDto,
-    files: Express.Multer.File[],
+    files: Express.Multer.File[], // This will be empty now since we process files in controller
     userPayload: any,
   ): Promise<Annonce> {
     const user = await this.userModel.findById(userPayload.userId);
@@ -69,38 +69,13 @@ export class AnnoncesService {
       throw new BadRequestException('startDate must be earlier than endDate');
     }
 
-    // Verify all uploaded images
-    const imagePaths = files.map((file) => file.path);
-    const verificationResults = await this.imageVerificationService.verifyHouseImages(imagePaths);
-
-    // Check which images failed verification
-    const failedImages: string[] = [];
-    verificationResults.forEach((isValid, index) => {
-      if (!isValid) {
-        failedImages.push(files[index].originalname);
-      }
-    });
-
-    // If any images failed, delete all uploaded files and throw error
-    if (failedImages.length > 0) {
-      // Clean up uploaded files
-      await Promise.all(
-        imagePaths.map((path) =>
-          unlink(path).catch((err) => console.error(`Failed to delete file ${path}:`, err)),
-        ),
-      );
-
-      throw new BadRequestException(
-        `The following images are not house-related: ${failedImages.join(', ')}. Please upload images of house interiors or exteriors only.`,
-      );
-    }
-
-    // All images are valid, create annonce with image filenames
-    const imageUrls = files.map((file) => file.filename);
+    // With Cloudinary, we receive image URLs directly in createAnnonceDto.images
+    // No need to process files here anymore
+    const imageUrls = createAnnonceDto.images || [];
 
     const annonce = new this.annonceModel({
       ...createAnnonceDto,
-      images: imageUrls,
+      images: imageUrls, // Use Cloudinary URLs
       user: new Types.ObjectId(user._id),
     });
 

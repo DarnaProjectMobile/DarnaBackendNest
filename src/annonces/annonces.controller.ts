@@ -21,14 +21,16 @@ import type { Request } from 'express';
 import { UserDocument } from 'src/users/schemas/user.schema';
 import { BookAnnonceDto } from './dto/book-annonce.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
 import { ApiConsumes, ApiTags, ApiBody } from '@nestjs/swagger';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @ApiTags('Annonces')
 @Controller('annonces')
 export class AnnoncesController {
-  constructor(private readonly annoncesService: AnnoncesService) { }
+  constructor(
+    private readonly annoncesService: AnnoncesService,
+    private cloudinaryService: CloudinaryService
+  ) { }
 
   @UseGuards(JwtAuthGuard)
   @Post()
@@ -62,14 +64,7 @@ export class AnnoncesController {
   })
   @UseInterceptors(
     FilesInterceptor('images', 5, {
-      storage: diskStorage({
-        destination: './uploads/annonces',
-        filename: (req, file, cb) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const extension = extname(file.originalname);
-          cb(null, uniqueSuffix + extension);
-        },
-      }),
+      storage: require('multer').memoryStorage(), // Use memory storage instead of disk
       fileFilter: (req, file, cb) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
           cb(new BadRequestException('Only image files are allowed!'), false);
@@ -97,9 +92,16 @@ export class AnnoncesController {
       throw new BadRequestException('Maximum 5 images allowed');
     }
 
+    // Upload images to Cloudinary and get URLs
+    const imageUrls: string[] = [];
+    for (const file of files) {
+      const result = await this.cloudinaryService.uploadImage(file, 'annonces');
+      imageUrls.push(result.secure_url);
+    }
+
     return this.annoncesService.createWithImageVerification(
-      createAnnonceDto,
-      files,
+      { ...createAnnonceDto, images: imageUrls }, // Pass Cloudinary URLs instead of local paths
+      [], // Pass empty files array since we've already processed them
       user,
     );
   }

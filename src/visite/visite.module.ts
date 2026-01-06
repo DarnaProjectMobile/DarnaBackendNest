@@ -8,6 +8,7 @@ import { ReviewsModule } from '../reviews/reviews.module';
 import { UsersModule } from '../users/users.module';
 import { LogementModule } from '../logement/logement.module';
 import { NotificationsFirebaseModule } from '../notifications-firebase/notifications-firebase.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { NotificationsFirebaseModule } from '../notifications-firebase/notificat
     UsersModule,
     LogementModule,
     NotificationsFirebaseModule,
+    CloudinaryModule, // Add Cloudinary module
   ],
   controllers: [VisiteController],
   providers: [VisiteService],

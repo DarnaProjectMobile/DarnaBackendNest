@@ -1,42 +1,41 @@
-import {
-  Controller,
-  Post,
-  Body,
-  UploadedFile,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Post, Body, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
-import * as NestPlatformExpress from '@nestjs/platform-express';
-const FileInterceptor = (NestPlatformExpress as any).FileInterceptor;
-import { diskStorage } from 'multer';
-import { VerifyEmailDto } from './dto/verify-email.dto';
 import { LoginDto } from './dto/login.dto';
-import { ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiConsumes, ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) { }
+  constructor(
+    private authService: AuthService,
+    private cloudinaryService: CloudinaryService
+  ) { }
 
   // 1️⃣ Register user
   @Post('register')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('image', {
-      storage: diskStorage({
-        destination: './uploads/users',
-        filename: (req, file, cb) =>
-          cb(null, Date.now() + '-' + file.originalname),
-      }),
+      storage: require('multer').memoryStorage(), // Use memory storage instead of disk
     }),
   )
-  register(
+  async register(
     @Body() dto: CreateUserDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    const image = file?.filename;
-    return this.authService.register(dto, image);
+    let imageUrl: string | undefined;
+    
+    if (file) {
+      // Upload image to Cloudinary
+      const result = await this.cloudinaryService.uploadImage(file, 'users');
+      imageUrl = result.secure_url;
+    }
+    
+    return this.authService.register(dto, imageUrl);
   }
 
   // 2️⃣ Login

@@ -3,20 +3,21 @@ import * as NestPlatformExpress from '@nestjs/platform-express';
 const FileInterceptor = (NestPlatformExpress as any).FileInterceptor;
 const FileFieldsInterceptor = (NestPlatformExpress as any).FileFieldsInterceptor;
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
-import { existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/common/current-user.decorator';
 import { ChatService } from './chat.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @ApiTags('Chat')
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
-  constructor(private readonly chatService: ChatService) { }
+  constructor(
+    private readonly chatService: ChatService,
+    private cloudinaryService: CloudinaryService
+  ) { }
 
   @Post('message')
   @ApiBearerAuth('access-token')
@@ -25,21 +26,7 @@ export class ChatController {
     FileFieldsInterceptor(
       [{ name: 'images', maxCount: 5 }],
       {
-        storage: diskStorage({
-          destination: (req, file, cb) => {
-            const uploadPath = './uploads/chat';
-            if (!existsSync(uploadPath)) {
-              mkdirSync(uploadPath, { recursive: true });
-            }
-            cb(null, uploadPath);
-          },
-          filename: (req, file, cb) => {
-            // Nettoyer le nom de fichier original pour enlever les espaces
-            const cleanOriginalName = file.originalname.trim().replace(/\s+/g, '-');
-            const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + cleanOriginalName;
-            cb(null, uniqueName);
-          },
-        }),
+        storage: require('multer').memoryStorage(), // Use memory storage instead of disk
         fileFilter: (req, file, cb) => {
           try {
             console.log(`🔍 [message] File filter - mimetype: ${file.mimetype}, originalname: ${file.originalname}`);
@@ -141,15 +128,15 @@ export class ChatController {
       images: [],
     };
 
-    // Si des fichiers sont uploadés, ajouter leurs URLs au DTO
+    // Si des fichiers sont uploadés, uploader à Cloudinary et ajouter les URLs au DTO
     if (files?.images && files.images.length > 0) {
-      createMessageDto.images = files.images.map(file => {
-        // Nettoyer le filename pour enlever les espaces et caractères spéciaux
-        const cleanFilename = file.filename.trim().replace(/\s+/g, '-');
-        const imageUrl = `/uploads/chat/${cleanFilename}`;
-        console.log(`📸 [createMessage] Image URL: ${imageUrl} (original filename: ${file.filename})`);
-        return imageUrl;
-      });
+      const imageUrls: string[] = [];
+      for (const file of files.images) {
+        const result = await this.cloudinaryService.uploadImage(file, 'chat');
+        imageUrls.push(result.secure_url);
+      }
+      
+      createMessageDto.images = imageUrls;
       console.log(`📸 [createMessage] ${files.images.length} image(s) uploadée(s):`, createMessageDto.images);
     } else {
       console.log(`📸 [createMessage] Aucune image dans la requête`);
@@ -233,31 +220,7 @@ export class ChatController {
     FileFieldsInterceptor(
       [{ name: 'images', maxCount: 5 }],
       {
-        storage: diskStorage({
-          destination: (req, file, cb) => {
-            try {
-              const uploadPath = './uploads/chat';
-              if (!existsSync(uploadPath)) {
-                mkdirSync(uploadPath, { recursive: true });
-              }
-              console.log(`📁 Destination: ${uploadPath} for file: ${file.originalname}`);
-              cb(null, uploadPath);
-            } catch (error) {
-              console.error('❌ Error in destination:', error);
-              cb(error as Error, '');
-            }
-          },
-          filename: (req, file, cb) => {
-            try {
-              const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname;
-              console.log(`📝 Filename generated: ${uniqueName} for: ${file.originalname}`);
-              cb(null, uniqueName);
-            } catch (error) {
-              console.error('❌ Error in filename:', error);
-              cb(error as Error, '');
-            }
-          },
-        }),
+        storage: require('multer').memoryStorage(), // Use memory storage instead of disk
         fileFilter: (req, file, cb) => {
           try {
             console.log(`🔍 [upload-images] File filter - mimetype: ${file.mimetype}, originalname: ${file.originalname}`);
@@ -355,13 +318,13 @@ export class ChatController {
       console.log(`  Image ${index + 1}: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
     });
 
-    const imageUrls = files.images.map(file => {
-      // Nettoyer le filename pour enlever les espaces
-      const cleanFilename = file.filename.trim().replace(/\s+/g, '-');
-      const imageUrl = `/uploads/chat/${cleanFilename}`;
-      console.log(`📸 [uploadImages] Image URL: ${imageUrl} (original filename: ${file.filename})`);
-      return imageUrl;
-    });
+    // Upload images to Cloudinary and get URLs
+    const imageUrls: string[] = [];
+    for (const file of files.images) {
+      const result = await this.cloudinaryService.uploadImage(file, 'chat');
+      imageUrls.push(result.secure_url);
+    }
+    
     return { images: imageUrls };
   }
 
@@ -423,9 +386,3 @@ export class ChatController {
     return this.chatService.toggleReaction(messageId, toggleReactionDto.emoji, user.userId);
   }
 }
-
-
-
-
-
-

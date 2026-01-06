@@ -13,14 +13,16 @@ import { RolesGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorators';
 import { CurrentUser } from '../auth/common/current-user.decorator';
 import { Role } from '../auth/common/role.enum';
-import { diskStorage } from 'multer';
-import { existsSync, mkdirSync } from 'fs';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @ApiTags('Visite')
 @Controller('visite')
 @UseGuards(JwtAuthGuard) // Tous les endpoints nécessitent l'authentification
 export class VisiteController {
-  constructor(private readonly visiteService: VisiteService) { }
+  constructor(
+    private readonly visiteService: VisiteService,
+    private cloudinaryService: CloudinaryService
+  ) { }
 
   // 👤 CÔTÉ CLIENT : Créer une visite
   @Post()
@@ -249,17 +251,7 @@ export class VisiteController {
     FileFieldsInterceptor(
       [{ name: 'documents', maxCount: 10 }],
       {
-        storage: diskStorage({
-          destination: (req, file, cb) => {
-            const uploadPath = './uploads/visites';
-            if (!existsSync(uploadPath)) {
-              mkdirSync(uploadPath, { recursive: true });
-            }
-            cb(null, uploadPath);
-          },
-          filename: (req, file, cb) =>
-            cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname),
-        }),
+        storage: require('multer').memoryStorage(), // Use memory storage instead of disk
         fileFilter: (req, file, cb) => {
           // Accepter les images et les PDFs pour les documents
           if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|pdf)$/)) {
@@ -286,9 +278,15 @@ export class VisiteController {
     @UploadedFiles() files: { documents?: Express.Multer.File[] },
     @CurrentUser() user: any,
   ) {
-    const documentNames = files.documents?.map(file => file.filename) || [];
+    const documentUrls: string[] = [];
+    if (files.documents && files.documents.length > 0) {
+      for (const file of files.documents) {
+        const result = await this.cloudinaryService.uploadImage(file, 'visites');
+        documentUrls.push(result.secure_url);
+      }
+    }
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.visiteService.addDocuments(id, documentNames, user.userId);
+    return this.visiteService.addDocuments(id, documentUrls, user.userId);
   }
 
   // 👤 CÔTÉ CLIENT : Uploader des documents après visite (page de confirmation)
@@ -301,17 +299,7 @@ export class VisiteController {
     FileFieldsInterceptor(
       [{ name: 'documents', maxCount: 10 }, { name: 'screenshots', maxCount: 10 }],
       {
-        storage: diskStorage({
-          destination: (req, file, cb) => {
-            const uploadPath = './uploads/visites/confirmation';
-            if (!existsSync(uploadPath)) {
-              mkdirSync(uploadPath, { recursive: true });
-            }
-            cb(null, uploadPath);
-          },
-          filename: (req, file, cb) =>
-            cb(null, Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname),
-        }),
+        storage: require('multer').memoryStorage(), // Use memory storage instead of disk
         fileFilter: (req, file, cb) => {
           // Accepter les images et les PDFs
           if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|pdf)$/)) {
@@ -338,11 +326,23 @@ export class VisiteController {
     @UploadedFiles() files: { documents?: Express.Multer.File[], screenshots?: Express.Multer.File[] },
     @CurrentUser() user: any,
   ) {
-    const allFiles = [
-      ...(files.documents?.map(file => file.filename) || []),
-      ...(files.screenshots?.map(file => file.filename) || []),
-    ];
+    const allDocumentUrls: string[] = [];
+    
+    if (files.documents && files.documents.length > 0) {
+      for (const file of files.documents) {
+        const result = await this.cloudinaryService.uploadImage(file, 'visites/confirmation');
+        allDocumentUrls.push(result.secure_url);
+      }
+    }
+    
+    if (files.screenshots && files.screenshots.length > 0) {
+      for (const file of files.screenshots) {
+        const result = await this.cloudinaryService.uploadImage(file, 'visites/confirmation');
+        allDocumentUrls.push(result.secure_url);
+      }
+    }
+    
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.visiteService.addDocuments(id, allFiles, user.userId);
+    return this.visiteService.addDocuments(id, allDocumentUrls, user.userId);
   }
 }

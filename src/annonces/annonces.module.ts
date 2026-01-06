@@ -6,12 +6,14 @@ import { Annonce, AnnonceSchema } from './entities/annonce.entity';
 import { UsersModule } from 'src/users/users.module';
 import { NotificationModule } from 'src/notification/notification.module';
 import { ImageVerificationService } from './image-verification.service';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Annonce.name, schema: AnnonceSchema }]),
     UsersModule,
     NotificationModule,
+    CloudinaryModule, // Add Cloudinary module
   ],
   controllers: [AnnoncesController],
   providers: [AnnoncesService, ImageVerificationService],
